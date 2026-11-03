@@ -7,6 +7,19 @@ Aplicación web en español para guardar el historial de mantenimiento de un aut
 Desde esta carpeta, ejecutar `npm start` y abrir http://127.0.0.1:4173.
 Requiere Python 3. No necesita instalar dependencias ni compilar.
 
+## Publicar en Vercel desde GitHub
+
+El repositorio contiene los archivos de la aplicación en su raíz; la carpeta local correspondiente es `bitacora-auto`.
+
+1. En Vercel, seleccionar **Add New → Project** e importar `Maxi-Max10/bitacoraAuto`.
+2. Mantener **Root Directory** en `./` y **Framework Preset** en **Other**.
+3. El archivo `vercel.json` configura automáticamente **Build Command** como `npm run build` y **Output Directory** como `dist`, sin instalación de dependencias.
+4. Seleccionar **Deploy**. No se requieren variables de entorno.
+
+`npm run build` comprueba la sintaxis de los módulos; los archivos de `dist` ya están listos para publicarse. Usar Node.js 24. Después de importar el repositorio, Vercel puede publicar los nuevos cambios enviados a `main` automáticamente.
+
+Los registros guardados en la URL anterior no se transfieren automáticamente a la URL de Vercel: descargar una copia de seguridad desde la app anterior y restaurarla en la nueva.
+
 ## Funciones
 
 - Datos del auto: marca, modelo, año, patente y kilometraje actual.

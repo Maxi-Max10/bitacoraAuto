@@ -2,3 +2,7 @@ node_modules/
 .sites-local/
 *.tar.gz
 *.log
+.vercel/
+.env
+.env.*
+!.env.example
