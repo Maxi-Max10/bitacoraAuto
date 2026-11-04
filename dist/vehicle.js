@@ -1,5 +1,6 @@
-import { BODY_TYPES, escapeHTML } from './core.js';
+import { BODY_TYPES, VEHICLE_TYPES, escapeHTML } from './core.js';
 import { modelProfile } from './vehicle-models.js';
+import { kindArtwork } from './vehicle-kinds.js';
 
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const aliases = { vw: 'volkswagen', volkswagen: 'volkswagen', frod: 'ford', 'mercedes benz': 'mercedes', 'mercedes-benz': 'mercedes', 'chevy': 'chevrolet', 'alfa romeo': 'alfa' };
@@ -52,8 +53,11 @@ const hints = [
 
 export function vehicleAppearance(car = {}) {
   const make = normalize(car.make), model = normalize(car.model);
+  if(car.type&&Object.hasOwn(VEHICLE_TYPES,car.type)&&!['car','pickup','suv','van'].includes(car.type)){
+    return {body:car.type,label:VEHICLE_TYPES[car.type],drawingLabel:VEHICLE_TYPES[car.type],source:'type',profile:null,profileId:`type-${car.type}`,trim:0,stage:!make?0:!model?1:!/^\d{4}$/.test(String(car.year))?2:3};
+  }
   const brand = aliases[make] || (make === 'land rover' ? 'landrover' : make);
-  let body = Object.hasOwn(BODY_TYPES, car.body) ? car.body : null;
+  let body = Object.hasOwn(BODY_TYPES, car.body) ? car.body : ['pickup','suv','van'].includes(car.type)?car.type:null;
   let source = body ? 'manual' : 'fallback';
   if (!body) {
     const hint = hints.find(([, pattern]) => pattern.test(model));
@@ -132,6 +136,7 @@ function wheel(x, y, radius, trim) {
 
 export function carArtwork(car = {}) {
   const appearance = vehicleAppearance(car), shape = appearance.profile || silhouettes[appearance.body];
+  if(appearance.source==='type')return kindArtwork(car,appearance,escapeHTML);
   const name = [car.make, car.model, car.year].filter(Boolean).join(' ').trim();
   const label = escapeHTML(name ? `Dibujo animado de ${name}. ${appearance.profile ? 'Diseño específico del modelo.' : 'Aproximación por carrocería.'}` : 'Dibujo de un auto. Completá la marca, el modelo y el año para darle forma.');
   const y = shape.raised ? 188 : 184, radius = shape.raised ? 37 : 34;

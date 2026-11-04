@@ -1,5 +1,6 @@
 import { carArtwork, vehicleAppearance } from './vehicle.js';
-import { CATEGORIES, BODY_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState, saveState } from './core.js';
+import { CATEGORIES, BODY_TYPES, VEHICLE_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState } from './core.js';
+import * as cloud from './cloud.js';
 
 const paths = {
   gauge:'<path d="M4.9 19a9 9 0 1 1 14.2 0M12 12l5-5"/><circle cx="12" cy="12" r="1"/>',
@@ -36,23 +37,92 @@ const dateLabel = (date, options = {day:'2-digit', month:'short', year:'numeric'
 const categoryIcon = category => ({mantenimiento:'oil', reparacion:'wrench', mejora:'spark', revision:'check', otro:'wrench'})[category];
 const localNow = () => { const d = new Date(); return { date: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`, time: `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }; };
 const isImage = f => /^image\/(png|jpeg|webp|gif|avif|bmp)$/i.test(f.type);
-let state = freshState(), db, demo = null, page = 'historial', query = '', category = 'todos', sort = 'newest', editingId = null, pendingFiles = [], toastTimer, saveBusy = false;
+let state = freshState(), db, demo = null, page = 'garage', query = '', category = 'todos', sort = 'newest', editingId = null, pendingFiles = [], toastTimer, saveBusy = false;
+let account=null,vehicles=[],legacy=null,creatingCar=false,authMode='login',switchBusy=false;
 let previewURLs = [];
 const current = () => demo || state;
 function toast(message, error = false) { const el = $('#toast'); clearTimeout(toastTimer); el.textContent = message; el.classList.toggle('error', error); el.hidden = false; toastTimer = setTimeout(() => el.hidden = true, error ? 9000 : 4500); }
 function showError(id, message) { const el = $(id); el.textContent = message; el.hidden = false; }
-function fileURL(file) { const url = URL.createObjectURL(file.blob); previewURLs.push(url); return url; }
+function fileURL(file) { if(file.remote)return `/api/files?id=${encodeURIComponent(file.id)}`; const url = URL.createObjectURL(file.blob); previewURLs.push(url); return url; }
 function revokeURLs() { previewURLs.forEach(url => URL.revokeObjectURL(url)); previewURLs = []; }
 async function persist(next) {
   if (demo) { demo = next; return; }
-  if (!db) throw new Error('El almacenamiento no está disponible. Habilitá los datos de sitios y recargá la app.');
-  try { await saveState(db, next); state = next; }
-  catch (error) { throw new Error(error?.name === 'QuotaExceededError' ? 'No queda espacio en el navegador. Descargá una copia y liberá espacio antes de guardar.' : 'No se pudo guardar. Tus datos anteriores siguen intactos; intentá de nuevo.'); }
+  if (!account||!state.id) throw new Error('Elegí un vehículo de tu garage.');
+  state=await cloud.save({...next,id:state.id,revision:state.revision},account.id);
+  vehicles=vehicles.map(vehicle=>vehicle.id===state.id?{...vehicle,...state.car,revision:state.revision,entryCount:state.entries.length}:vehicle);
+}
+
+function rememberedVehicle(id) { try{if(id)localStorage.setItem(`bitacora:vehicle:${account.id}`,id);else return localStorage.getItem(`bitacora:vehicle:${account.id}`);}catch{} }
+function legacyImported(){try{return localStorage.getItem(`bitacora:legacy:${account.id}`)==='yes';}catch{return false;}}
+async function accountGarage(){
+  const result=await cloud.list();account=result.user;vehicles=result.vehicles;
+  const selected=vehicles.find(v=>v.id===rememberedVehicle())||vehicles[0];
+  state=selected?await cloud.load(selected.id):freshState();
+  if(selected)rememberedVehicle(selected.id);
+  document.body.classList.remove('signed-out');$('#auth-screen').hidden=true;$('#boot-screen').hidden=true;
+  readPage();
+}
+async function boot(){
+  $('#boot-screen').hidden=false;$('#boot-retry').hidden=true;$('#boot-message').textContent='Abriendo tu garage…';
+  try{
+    const result=await cloud.session();
+    if(result?.user){account=result.user;await accountGarage();}
+    else{account=null;state=freshState();vehicles=[];document.body.classList.add('signed-out');$('#boot-screen').hidden=true;$('#auth-screen').hidden=false;}
+  }catch(error){$('#boot-message').textContent='No se pudo conectar con tu garage. Tus datos siguen guardados.';$('#boot-retry').hidden=false;}
+}
+function authTab(mode){
+  authMode=mode;const register=mode==='register';$('#auth-error').hidden=true;
+  $('#auth-name-label').hidden=!register;$('#auth-name').required=register;$('#auth-password-help').hidden=!register;
+  $('#auth-password').autocomplete=register?'new-password':'current-password';$('#auth-password').minLength=register?10:1;
+  $('#auth-title').textContent=register?'Creá tu garage':'Volvé a tu garage';$('#auth-subtitle').textContent=register?'Tu cuenta puede tener todos tus vehículos.':'Ingresá con tu email y contraseña.';
+  $('#auth-submit').textContent=register?'Crear cuenta':'Ingresar';
+  for(const [id,active] of [['auth-login',!register],['auth-register',register]]){$('#'+id).classList.toggle('active',active);$('#'+id).setAttribute('aria-pressed',String(active));}
+}
+async function authenticate(event){
+  event.preventDefault();const button=$('#auth-submit');button.disabled=true;$('#auth-error').hidden=true;
+  try{
+    const data=new FormData(event.target);
+    if(authMode==='register')await cloud.signUp(data.get('name').trim(),data.get('email').trim(),data.get('password'));
+    else await cloud.signIn(data.get('email').trim(),data.get('password'));
+    $('#auth-password').value='';await accountGarage();
+  }catch(error){showError('#auth-error',error.message);}finally{button.disabled=false;}
+}
+async function logout(){
+  if(saveBusy)return toast('Esperá a que termine el guardado.');
+  try{await cloud.signOut();clearAccount();}catch(error){toast(error.message,true);}
+}
+function clearAccount(){
+  revokeURLs();account=null;vehicles=[];state=freshState();demo=null;pendingFiles=[];editingId=null;
+  document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());$('#page-content').innerHTML='';
+  document.body.classList.add('signed-out');$('#auth-screen').hidden=false;$('#boot-screen').hidden=true;$('#auth-form').reset();authTab('login');
+}
+async function selectVehicle(id){
+  if(saveBusy||switchBusy)return;switchBusy=true;
+  try{state=await cloud.load(id);demo=null;query='';category='todos';rememberedVehicle(id);page='historial';location.hash='historial';render();}
+  catch(error){toast(error.message,true);}finally{switchBusy=false;}
+}
+function garagePage(){
+  const legacyCard=legacy&&!legacyImported()?`<section class="migration-card"><div>${icon('archive')}<h3>Encontramos tu historial anterior</h3><p>${esc(legacy.car.make)} ${esc(legacy.car.model)} · ${legacy.entries.length} registros guardados en este navegador.</p></div><button class="button secondary" data-action="import-legacy">Sumarlo a mi cuenta ${icon('arrow')}</button></section>`:'';
+  if(!vehicles.length)return `${legacyCard}<section class="garage-empty"><div class="eyebrow">ESTE ES TU PUNTO DE PARTIDA</div><h2>Un garage para todos<br>tus vehículos<span>.</span></h2><p>Sumá un auto, una moto, una camioneta o cualquier otro vehículo. Cada uno tiene su propio historial.</p><button class="button primary" data-action="new-vehicle">${icon('plus')} Agregar mi primer vehículo</button><div class="garage-types">Auto <span>·</span> Moto <span>·</span> Pickup <span>·</span> Y más</div></section>`;
+  return `${legacyCard}<section class="garage-grid" aria-label="Mis vehículos">${vehicles.map(vehicle=>`<article class="garage-card"><button class="garage-card-main" data-select-vehicle="${esc(vehicle.id)}"><span class="garage-type">${esc(VEHICLE_TYPES[vehicle.type]||'Vehículo')}${vehicle.id===state.id?'<span class="active-vehicle">ACTIVO</span>':''}</span><div class="garage-car-art">${carArtwork(vehicle)}</div><h2>${esc(vehicle.make)} ${esc(vehicle.model)}</h2><p>${vehicle.year?`${vehicle.year} · `:''}${vehicle.plate?esc(vehicle.plate):'Sin patente registrada'}</p><div class="garage-card-stats"><span><strong>${number(vehicle.km)}</strong> km</span><span>${vehicle.entryCount} registros ${icon('arrow')}</span></div></button><button class="garage-delete" data-delete-vehicle="${esc(vehicle.id)}" aria-label="Eliminar ${esc(vehicle.make)} ${esc(vehicle.model)}">${icon('trash')}</button></article>`).join('')}</section>`;
+}
+async function deleteVehicle(id){
+  if(saveBusy)return;
+  const vehicle=vehicles.find(v=>v.id===id);if(!vehicle)return;
+  if(!await confirmAction('¿Eliminar este vehículo?',`Se eliminarán ${vehicle.make} ${vehicle.model}, sus ${vehicle.entryCount} registros y sus adjuntos. Descargá una copia antes si querés conservarlos.`))return;
+  saveBusy=true;try{await cloud.remove(id);await accountGarage();toast('Vehículo eliminado.');}catch(error){toast(error.message,true);}finally{saveBusy=false;}
+}
+async function importLegacy(){
+  if(saveBusy||!legacy)return;
+  if(!await confirmAction('¿Sumar el historial anterior?',`Se agregará como un vehículo de la cuenta ${account.email}. Los datos del navegador se conservan.`,'Importar a mi cuenta'))return;
+  saveBusy=true;
+  try{state=await cloud.importVehicle(legacy,account.id);rememberedVehicle(state.id);try{localStorage.setItem(`bitacora:legacy:${account.id}`,'yes');}catch{}await accountGarage();location.hash='historial';toast('Tu historial anterior ya está en tu cuenta.');}
+  catch(error){toast(error.message,true);}finally{saveBusy=false;}
 }
 
 function hero() {
   const car = current().car; const configured = car.make || car.model;
-  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar auto' : 'Configurar mi auto'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).drawingLabel)} · ILUSTRACIÓN` : 'LISTO PARA LO QUE VIENE ↗'}</span></section>`;
+  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar vehículo' : 'Configurar mi vehículo'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).drawingLabel)} · ILUSTRACIÓN` : 'LISTO PARA LO QUE VIENE ↗'}</span></section>`;
 }
 function stats() {
   const entries = current().entries, latest = sortEntries(entries)[0], sum = entries.reduce((total, e) => total + (e.cost || 0), 0), hasCost = entries.some(e => e.cost !== null);
@@ -74,27 +144,35 @@ function renderTimeline() {
 }
 function carPage() {
   const car=current().car;
-  return `${hero()}<section class="car-details"><div class="history-header"><h3>Los datos de tu auto</h3><button class="text-button" data-action="edit-car">${icon('edit')} Editar datos</button></div><dl class="detail-grid">${[['Marca',car.make],['Modelo',car.model],['Año',car.year],['Patente',car.plate],['Kilometraje actual',`${number(car.km)} km`],['Trabajos registrados',current().entries.length]].map(([key,value])=>`<div><dt>${key}</dt><dd>${value!==''?esc(value):'Por completar'}</dd></div>`).join('')}</dl></section><div class="storage-note">${icon('shield')}<div><h3>Tu garage, en este navegador</h3><p>Los datos y adjuntos se guardan en este dispositivo. Para llevarlos a otro o conservar una copia, usá Copia de seguridad.</p><button class="text-button" data-action="backup">Descargar mi copia ${icon('arrow')}</button></div></div>`;
+  return `${hero()}<section class="car-details"><div class="history-header"><h3>Los datos de tu vehículo</h3><button class="text-button" data-action="edit-car">${icon('edit')} Editar datos</button></div><dl class="detail-grid">${[['Marca',car.make],['Modelo',car.model],['Año',car.year],['Patente',car.plate],['Kilometraje actual',`${number(car.km)} km`],['Trabajos registrados',current().entries.length]].map(([key,value])=>`<div><dt>${key}</dt><dd>${value!==''?esc(value):'Por completar'}</dd></div>`).join('')}</dl></section><div class="storage-note">${icon('shield')}<div><h3>Tu garage, en tu cuenta</h3><p>Los datos y adjuntos de este vehículo son privados de tu cuenta. Ingresá desde otro dispositivo para encontrarlos.</p><button class="text-button" data-action="backup">Descargar mi copia ${icon('arrow')}</button></div></div>`;
 }
 function attachmentsPage() {
   const files = sortEntries(current().entries).flatMap(e=>e.attachments.map(f=>({f,e})));
   if (!files.length) return `<div class="empty-state"><span class="empty-symbol">${icon('paperclip')}</span><h3>Los detalles también hacen historia</h3><p>Las fotos y comprobantes que adjuntes a tus trabajos<br>van a aparecer acá, todos juntos.</p><button class="button primary" data-action="new-entry">${icon('plus')} Registrar un trabajo</button></div>`;
-  return `<p class="files-summary">${files.length} ${files.length===1?'archivo guardado':'archivos guardados'} · Fotos, comprobantes y documentos de tu auto</p><section class="files-grid" aria-label="Adjuntos guardados">${files.map(({f,e})=>`<article class="file-card"><button class="file-preview" data-download="${esc(f.id)}" aria-label="Descargar ${esc(f.name)}">${isImage(f)?`<img src="${fileURL(f)}" alt="${esc(f.name)}" loading="lazy">`:icon('file')}</button><div class="file-info"><h3 title="${esc(f.name)}">${esc(f.name)}</h3><p>${dateLabel(e.date)} · ${fileSize(f.blob.size)}</p><button data-view="${esc(e.id)}">Ver registro ${icon('arrow')}</button></div></article>`).join('')}</section>`;
+  return `<p class="files-summary">${files.length} ${files.length===1?'archivo guardado':'archivos guardados'} · Fotos, comprobantes y documentos de tu auto</p><section class="files-grid" aria-label="Adjuntos guardados">${files.map(({f,e})=>`<article class="file-card"><button class="file-preview" data-download="${esc(f.id)}" aria-label="Descargar ${esc(f.name)}">${isImage(f)?`<img src="${fileURL(f)}" alt="${esc(f.name)}" loading="lazy">`:icon('file')}</button><div class="file-info"><h3 title="${esc(f.name)}">${esc(f.name)}</h3><p>${dateLabel(e.date)} · ${fileSize((f.blob?.size ?? f.size))}</p><button data-view="${esc(e.id)}">Ver registro ${icon('arrow')}</button></div></article>`).join('')}</section>`;
 }
 function render() {
+  if(!account)return;
   revokeURLs();
-  const titles={historial:['Tu auto, su historia','Todos los cuidados de tu auto, en un solo lugar.'],auto:['Tu compañero de camino','Los datos de tu auto, siempre a mano.'],adjuntos:['Cada detalle, guardado','Fotos, facturas y comprobantes de tus trabajos.']};
+  const titles={garage:['Tu garage','Todos tus vehículos y sus historias, en un solo lugar.'],historial:['Tu auto, su historia','Todos los cuidados de tu auto, en un solo lugar.'],auto:['Tu compañero de camino','Los datos de tu vehículo, siempre a mano.'],adjuntos:['Cada detalle, guardado','Fotos, facturas y comprobantes de tus trabajos.']};
   $('#page-heading').innerHTML=`${titles[page][0]}<span>.</span>`;
   $('#page-subtitle').textContent=titles[page][1];
-  $('#breadcrumb-page').textContent={historial:'Historial',auto:'Mi auto',adjuntos:'Adjuntos'}[page];
+  $('#breadcrumb-page').textContent={garage:'Mis vehículos',historial:'Historial',auto:'Vehículo',adjuntos:'Adjuntos'}[page];
   document.querySelectorAll('[data-page]').forEach(el=>{const active=el.dataset.page===page;el.classList.toggle('active',active);if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
   $('#nav-count').textContent=current().entries.length;
+  $('#vehicle-count').textContent=String(vehicles.length).padStart(2,'0');
+  $('#account-name').textContent=account.name;
+  $('#vehicle-select').innerHTML=vehicles.length?vehicles.map(v=>`<option value="${esc(v.id)}">${esc(v.make)} ${esc(v.model)}${v.plate?' · '+esc(v.plate):''}</option>`).join(''):'<option value="">Todavía no agregaste vehículos</option>';
+  $('#vehicle-select').value=state.id||'';$('#vehicle-select').disabled=!vehicles.length||!!demo;
+  $('#new-entry').hidden=page==='garage'||(!state.id&&!demo);$('#new-vehicle').hidden=page!=='garage';
+  $('#export-data').disabled=!state.id&&!demo;
   $('#demo-banner').hidden=!demo;
-  $('#page-content').innerHTML=page==='historial'?historyPage():page==='auto'?carPage():attachmentsPage();
+  $('#page-content').innerHTML=page==='garage'?garagePage():page==='historial'?historyPage():page==='auto'?carPage():attachmentsPage();
   if(page==='historial'){ $('#sort-entries').value=sort; renderTimeline(); }
 }
-function readPage(){const hash=location.hash.slice(1);page=['historial','auto','adjuntos'].includes(hash)?hash:'historial';render();}
+function readPage(){const hash=location.hash.slice(1);page=['garage','historial','auto','adjuntos'].includes(hash)?hash:'garage';if(!state.id&&!demo)page='garage';render();}
 function openEntry(id=null) {
+  if(!state.id&&!demo){toast('Agregá o elegí un vehículo para registrar un trabajo.');location.hash='garage';return;}
   const form=$('#entry-form');form.reset();editingId=id;$('#entry-error').hidden=true;
   const e=id?current().entries.find(e=>e.id===id):null;
   if(id&&!e)return;
@@ -106,7 +184,7 @@ function openEntry(id=null) {
   $('#editor-dialog').showModal();
 }
 function fileSize(bytes) { return bytes>=1024*1024?`${(bytes/1024/1024).toLocaleString('es-AR',{maximumFractionDigits:1})} MB`:`${Math.max(1,Math.ceil(bytes/1024))} KB`; }
-function renderPending(){ $('#pending-files').innerHTML=pendingFiles.map(f=>`<div class="pending-file">${icon('file')}<span>${esc(f.name)}</span><small>${fileSize(f.blob.size)}</small><button type="button" data-remove-file="${esc(f.id)}" aria-label="Quitar ${esc(f.name)}">${icon('x')}</button></div>`).join(''); }
+function renderPending(){ $('#pending-files').innerHTML=pendingFiles.map(f=>`<div class="pending-file">${icon('file')}<span>${esc(f.name)}</span><small>${fileSize((f.blob?.size ?? f.size))}</small><button type="button" data-remove-file="${esc(f.id)}" aria-label="Quitar ${esc(f.name)}">${icon('x')}</button></div>`).join(''); }
 function addFiles(files) {
   $('#entry-error').hidden=true;
   if(pendingFiles.length+files.length>MAX_FILES){showError('#entry-error','Podés adjuntar hasta 10 archivos por registro.');return;}
@@ -126,8 +204,9 @@ async function submitEntry(event) {
 }
 function renderCarPreview() {
   const form = $('#car-form');
-  const car = { make: form.elements.namedItem('make').value, model: form.elements.namedItem('model').value, year: form.elements.namedItem('year').value, body: form.elements.namedItem('body').value };
+  const car = { make: form.elements.namedItem('make').value, model: form.elements.namedItem('model').value, year: form.elements.namedItem('year').value, type: form.elements.namedItem('type').value, body: form.elements.namedItem('body').value };
   const appearance = vehicleAppearance(car);
+  $('#body-type-label').hidden=!['car','suv','pickup','van'].includes(car.type);
   const key = `${appearance.profileId}:${appearance.stage}:${appearance.trim}`;
   const art = $('#car-preview-art');
   if (art.dataset.drawingKey !== key) { art.innerHTML = carArtwork(car); art.dataset.drawingKey = key; }
@@ -139,19 +218,27 @@ function renderCarPreview() {
       ? appearance.stage === 3 ? 'Dibujo del modelo y generación seleccionados. Los cambios se ven antes de guardar.' : 'Dibujo del modelo seleccionado. Completá el año para ajustar su generación y terminaciones.'
       : 'Este modelo todavía no tiene un dibujo propio: se muestra una base por carrocería.';
 }
-function openCar(){const f=$('#car-form');f.reset();$('#car-error').hidden=true;['make','model','year','plate','km'].forEach(key=>f.elements.namedItem(key).value=current().car[key]);f.elements.namedItem('body').value=current().car.body||'auto';renderCarPreview();$('#car-dialog').showModal();}
+function openCar(add=false){
+  creatingCar=add&&!demo;const f=$('#car-form');f.reset();$('#car-error').hidden=true;
+  const car=creatingCar?freshState().car:current().car;
+  for(const key of ['make','model','year','plate','km'])f.elements.namedItem(key).value=car[key];
+  f.elements.namedItem('type').value=car.type||'car';f.elements.namedItem('body').value=car.body||'auto';
+  $('#car-editor-title').textContent=creatingCar?'Agregar vehículo':'Mi vehículo';renderCarPreview();$('#car-dialog').showModal();
+}
 async function submitCar(event){
   event.preventDefault();if(saveBusy)return;saveBusy=true;const submit=event.target.querySelector('[type=submit]');submit.disabled=true;$('#car-error').hidden=true;
-  try{const f=new FormData(event.target);const car=validateCar({make:f.get('make').trim(),model:f.get('model').trim(),year:f.get('year')===''?'':Number(f.get('year')),plate:f.get('plate').trim().toUpperCase(),km:Number(f.get('km')),body:f.get('body')});
+  try{const f=new FormData(event.target);const car=validateCar({make:f.get('make').trim(),model:f.get('model').trim(),year:f.get('year')===''?'':Number(f.get('year')),plate:f.get('plate').trim().toUpperCase(),km:Number(f.get('km')),body:f.get('body'),type:f.get('type')});
     if(!car.make||!car.model)throw new Error('Completá la marca y el modelo del auto.');
-    if(current().entries.some(e=>e.km>car.km))throw new Error('El kilometraje actual no puede ser menor al de un trabajo registrado.');
-    await persist({...current(),car});$('#car-dialog').close();render();toast('Los datos de tu auto están actualizados.');
+    if(!creatingCar&&current().entries.some(e=>e.km>car.km))throw new Error('El kilometraje actual no puede ser menor al de un trabajo registrado.');
+    if(creatingCar){state=await cloud.create(car);vehicles.push({id:state.id,...state.car,entryCount:0,revision:state.revision});rememberedVehicle(state.id);page='auto';location.hash='auto';}
+    else await persist({...current(),car});
+    $('#car-dialog').close();render();toast(creatingCar?'Vehículo agregado a tu garage.':'Los datos del vehículo están actualizados.');creatingCar=false;
   }catch(error){showError('#car-error',error.message);}finally{saveBusy=false;submit.disabled=false;}
 }
 function showDetail(id){
   const e=current().entries.find(e=>e.id===id);if(!e)return;
   const dialog=$('#detail-dialog');
-  dialog.innerHTML=`<div class="modal-heading"><div><div class="eyebrow">UN CAPÍTULO DE TU HISTORIA</div><h2>${esc(e.title)}</h2></div><button data-close class="icon-button" aria-label="Cerrar">${icon('x')}</button></div><div class="modal-body"><div class="record-summary"><span class="entry-icon ${e.category}">${icon(categoryIcon(e.category))}</span><span class="category-pill ${e.category}">${CATEGORIES[e.category]}</span></div><dl class="record-details"><div><dt>Fecha y hora del trabajo</dt><dd>${dateLabel(e.date)} · ${e.time} h</dd></div><div><dt>Kilometraje del momento</dt><dd>${number(e.km)} km</dd></div><div><dt>Costo total · ARS</dt><dd>${e.cost===null?'Sin costo registrado':new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(e.cost)}</dd></div><div><dt>Taller o responsable</dt><dd>${esc(e.workshop)||'Sin especificar'}</dd></div></dl>${e.notes?`<h3 class="detail-section-title">Notas del trabajo</h3><p class="record-notes">${esc(e.notes)}</p>`:'<p class="no-notes">Este registro no tiene notas adicionales.</p>'}${e.attachments.length?`<h3 class="detail-section-title">Adjuntos (${e.attachments.length})</h3><div class="record-files">${e.attachments.map(f=>`<div class="record-file">${isImage(f)?`<img src="${fileURL(f)}" alt="${esc(f.name)}">`:icon('file')}<div><strong>${esc(f.name)}</strong><small>${fileSize(f.blob.size)}</small></div><button data-download="${esc(f.id)}">Descargar ${icon('download')}</button></div>`).join('')}</div>`:''}</div><div class="modal-actions"><button class="delete-record" data-delete="${esc(e.id)}">${icon('trash')} Eliminar</button><button data-close class="button secondary">Cerrar</button><button class="button primary" data-edit="${esc(e.id)}">${icon('edit')} Editar registro</button></div>`;
+  dialog.innerHTML=`<div class="modal-heading"><div><div class="eyebrow">UN CAPÍTULO DE TU HISTORIA</div><h2>${esc(e.title)}</h2></div><button data-close class="icon-button" aria-label="Cerrar">${icon('x')}</button></div><div class="modal-body"><div class="record-summary"><span class="entry-icon ${e.category}">${icon(categoryIcon(e.category))}</span><span class="category-pill ${e.category}">${CATEGORIES[e.category]}</span></div><dl class="record-details"><div><dt>Fecha y hora del trabajo</dt><dd>${dateLabel(e.date)} · ${e.time} h</dd></div><div><dt>Kilometraje del momento</dt><dd>${number(e.km)} km</dd></div><div><dt>Costo total · ARS</dt><dd>${e.cost===null?'Sin costo registrado':new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(e.cost)}</dd></div><div><dt>Taller o responsable</dt><dd>${esc(e.workshop)||'Sin especificar'}</dd></div></dl>${e.notes?`<h3 class="detail-section-title">Notas del trabajo</h3><p class="record-notes">${esc(e.notes)}</p>`:'<p class="no-notes">Este registro no tiene notas adicionales.</p>'}${e.attachments.length?`<h3 class="detail-section-title">Adjuntos (${e.attachments.length})</h3><div class="record-files">${e.attachments.map(f=>`<div class="record-file">${isImage(f)?`<img src="${fileURL(f)}" alt="${esc(f.name)}">`:icon('file')}<div><strong>${esc(f.name)}</strong><small>${fileSize((f.blob?.size ?? f.size))}</small></div><button data-download="${esc(f.id)}">Descargar ${icon('download')}</button></div>`).join('')}</div>`:''}</div><div class="modal-actions"><button class="delete-record" data-delete="${esc(e.id)}">${icon('trash')} Eliminar</button><button data-close class="button secondary">Cerrar</button><button class="button primary" data-edit="${esc(e.id)}">${icon('edit')} Editar registro</button></div>`;
   dialog.showModal();
 }
 function confirmAction(title,message,label='Eliminar'){
@@ -164,18 +251,22 @@ async function deleteEntry(id){
   try{await persist({...current(),entries:current().entries.filter(e=>e.id!==id)});$('#detail-dialog').close();render();toast('Registro eliminado.');}catch(error){toast(error.message,true);}
 }
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
-function downloadFile(id){const f=current().entries.flatMap(e=>e.attachments).find(f=>f.id===id);if(f)download(f.blob,f.name);}
+async function downloadFile(id){const file=current().entries.flatMap(e=>e.attachments).find(f=>f.id===id);if(!file)return;try{download(await cloud.fileBlob(file),file.name);}catch(error){toast(error.message,true);}}
 function openBackup(){ $('#backup-error').hidden=true;$('#import-data').value='';$('#backup-dialog').showModal(); }
-async function exportData(){const btn=$('#export-data');btn.disabled=true;$('#backup-error').hidden=true;try{const text=await serializeBackup(current());download(new Blob([text],{type:'application/json'}),`bitacora-${demo?'ejemplo-':''}${localNow().date}.json`);toast('Copia preparada con todos tus registros y adjuntos.');}catch(error){showError('#backup-error',error.message);}finally{btn.disabled=false;}}
+async function exportData(){const btn=$('#export-data');btn.disabled=true;$('#backup-error').hidden=true;try{const text=await serializeBackup(await cloud.materialize(current()));download(new Blob([text],{type:'application/json'}),`bitacora-${demo?'ejemplo-':''}${localNow().date}.json`);toast('Copia preparada con todos tus registros y adjuntos.');}catch(error){showError('#backup-error',error.message);}finally{btn.disabled=false;}}
 async function importData(event){
-  const file=event.target.files[0];if(!file)return;$('#backup-error').hidden=true;
+  const file=event.target.files[0];if(!file||saveBusy)return;$('#backup-error').hidden=true;
   try{
-    if(file.size>200*1024*1024)throw new Error('La copia supera el límite de 200 MB para restaurar desde el navegador.');
+    if(file.size>200*1024*1024)throw new Error('La copia supera el límite de 200 MB.');
     const restored=deserializeBackup(await file.text());
-    if(!await confirmAction('¿Restaurar esta copia?',`Contiene ${restored.entries.length} registros. Reemplazará ${demo?'los datos del ejemplo':'el historial y los datos actuales de este navegador'}. Descargá una copia actual antes de continuar.`,'Restaurar copia'))return;
-    await persist(restored);$('#backup-dialog').close();query='';category='todos';render();toast('Copia restaurada con sus registros y adjuntos.');
-  }catch(error){showError('#backup-error',error.message||'No se pudo restaurar la copia.');}finally{event.target.value='';}
+    if(!await confirmAction(demo?'¿Restaurar el ejemplo?':'¿Importar este vehículo?',`Contiene ${restored.entries.length} registros. ${demo?'Reemplazará los datos del ejemplo.':'Se agregará a tu garage como un vehículo nuevo, con todos sus adjuntos.'}`,'Importar'))return;
+    saveBusy=true;
+    if(demo)demo=restored;
+    else{state=await cloud.importVehicle(restored,account.id);rememberedVehicle(state.id);await accountGarage();location.hash='historial';}
+    $('#backup-dialog').close();query='';category='todos';render();toast('Copia importada con sus registros y adjuntos.');
+  }catch(error){showError('#backup-error',error.message||'No se pudo importar la copia.');}finally{saveBusy=false;event.target.value='';}
 }
+
 function startDemo(){
   const receipt=new Blob(['BITÁCORA · COMPROBANTE DE EJEMPLO\nCambio de aceite y filtros\nEste archivo es una demostración, no una factura real.'],{type:'text/plain'});
   demo={version:1,car:{make:'Volkswagen',model:'Golf 1.4 TSI',year:2018,plate:'AB 123 CD',km:84520},entries:[
@@ -187,8 +278,14 @@ function startDemo(){
 }
 
 icons();
+$('#vehicle-type').innerHTML=Object.entries(VEHICLE_TYPES).map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+$('#auth-login').addEventListener('click',()=>authTab('login'));$('#auth-register').addEventListener('click',()=>authTab('register'));
+$('#auth-form').addEventListener('submit',authenticate);$('#sign-out').addEventListener('click',logout);$('#boot-retry').addEventListener('click',boot);
+$('#vehicle-select').addEventListener('change',event=>selectVehicle(event.target.value));
+$('#new-vehicle').addEventListener('click',()=>openCar(true));
+window.addEventListener('session-expired',()=>{clearAccount();showError('#auth-error','Tu sesión venció. Ingresá de nuevo para continuar.');});
 $('#car-body').innerHTML = '<option value="auto">Automática según el modelo</option>' + Object.entries(BODY_TYPES).map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
-$('#car-form').addEventListener('input', event => { if (['make','model','year','body'].includes(event.target.name)) renderCarPreview(); });
+$('#car-form').addEventListener('input', event => { if (['make','model','year','body','type'].includes(event.target.name)) renderCarPreview(); });
 $('#car-body').addEventListener('change', renderCarPreview);
 $('#today').textContent=new Intl.DateTimeFormat('es-AR',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
 window.addEventListener('hashchange',readPage);
@@ -214,7 +311,10 @@ document.addEventListener('click',e=>{
   const close=e.target.closest('[data-close]');if(close){close.closest('dialog').close();return;}
   const remove=e.target.closest('[data-remove-file]');if(remove){pendingFiles=pendingFiles.filter(f=>f.id!==remove.dataset.removeFile);renderPending();return;}
   const filter=e.target.closest('[data-filter]');if(filter){category=filter.dataset.filter;document.querySelectorAll('[data-filter]').forEach(el=>{el.classList.toggle('active',el.dataset.filter===category);el.setAttribute('aria-pressed',el.dataset.filter===category);});renderTimeline();return;}
+  const select=e.target.closest('[data-select-vehicle]');if(select){selectVehicle(select.dataset.selectVehicle);return;}
+  const deleteCar=e.target.closest('[data-delete-vehicle]');if(deleteCar){deleteVehicle(deleteCar.dataset.deleteVehicle);return;}
   const action=e.target.closest('[data-action]')?.dataset.action;
+  if(action==='new-vehicle')openCar(true);if(action==='import-legacy')importLegacy();
   if(action==='new-entry')openEntry();if(action==='edit-car')openCar();if(action==='backup')openBackup();if(action==='start-demo')startDemo();
   if(action==='clear-filters'){query='';category='todos';render();}
   const edit=e.target.closest('[data-edit]');if(edit){$('#detail-dialog').close();openEntry(edit.dataset.edit);return;}
@@ -224,4 +324,5 @@ document.addEventListener('click',e=>{
   const card=e.target.closest('[data-entry]');if(card)showDetail(card.dataset.entry);
 });
 document.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',e=>{if(e.target===dialog){const rect=dialog.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)dialog.close();}}));
-try{db=await openDatabase();state=await loadState(db);readPage();}catch(error){readPage();toast(error.message,true);}
+try{db=await openDatabase();const stored=await loadState(db);if(stored.car.make||stored.car.model||stored.entries.length)legacy=stored;}catch{legacy=null;}
+await boot();

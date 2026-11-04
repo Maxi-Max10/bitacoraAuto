@@ -1,43 +1,55 @@
-# Bitácora
+﻿# Bitácora
 
-Aplicación web en español para guardar el historial de mantenimiento de un auto.
+Garage personal con cuentas de usuario, varios vehículos por cuenta e historiales de mantenimiento separados.
 
-## Abrir localmente
-
-Desde esta carpeta, ejecutar `npm start` y abrir http://127.0.0.1:4173.
-Requiere Python 3. No necesita instalar dependencias ni compilar.
-
-## Publicar en Vercel desde GitHub
-
-El repositorio contiene los archivos de la aplicación en su raíz; la carpeta local correspondiente es `bitacora-auto`.
-
-1. En Vercel, seleccionar **Add New → Project** e importar `Maxi-Max10/bitacoraAuto`.
-2. Mantener **Root Directory** en `./` y **Framework Preset** en **Other**.
-3. El archivo `vercel.json` configura automáticamente **Build Command** como `npm run build` y **Output Directory** como `dist`, sin instalación de dependencias.
-4. Seleccionar **Deploy**. No se requieren variables de entorno.
-
-`npm run build` comprueba la sintaxis de los módulos; los archivos de `dist` ya están listos para publicarse. Usar Node.js 24. Después de importar el repositorio, Vercel puede publicar los nuevos cambios enviados a `main` automáticamente.
-
-Los registros guardados en la URL anterior no se transfieren automáticamente a la URL de Vercel: descargar una copia de seguridad desde la app anterior y restaurarla en la nueva.
+Producción: https://bitacoraauto.vercel.app
 
 ## Funciones
 
-- Datos del auto: marca, modelo, año, patente y kilometraje actual.
-- Dibujo animado que se traza al completar marca, modelo y año, con vista previa antes de guardar. Incluye perfiles propios para Ford Fiesta (con variantes por año), Volkswagen Golf, Peugeot 208 y Chevrolet Onix dentro de los años definidos en el catálogo. Los modelos sin perfil propio se identifican como «Base genérica» y permiten elegir entre ocho carrocerías. La elección se guarda y se incluye en la copia de seguridad. No usa fotografías ni servicios externos para dibujar el auto.
-- Registro, edición y eliminación de trabajos con fecha y hora local, kilómetros, categoría, costo opcional en ARS, taller y notas.
-- Hasta 10 adjuntos por trabajo, de hasta 15 MB cada uno, almacenados como archivos originales en IndexedDB.
-- Historial con búsqueda sin acentos, filtros y orden por fecha o kilometraje.
-- Galería de adjuntos con descarga de los archivos originales.
-- Exportación y restauración de una copia JSON que incluye todos los archivos. Límite de importación: 200 MB.
-- Modo de ejemplo separado de los datos personales. Se descarta al recargar o salir del ejemplo.
-- Diseño adaptable a celular y teclado, diálogos accesibles y mensajes de error de guardado.
+- Crear una cuenta con email y contraseña, iniciar y cerrar sesión.
+- Agregar autos, motos, pickups, SUV, utilitarios, camiones, colectivos, motorhomes, embarcaciones, bicicletas y otros vehículos.
+- Elegir un vehículo activo y consultar sus datos, trabajos, costos y adjuntos.
+- Datos e historiales privados por cuenta. El servidor comprueba la sesión y la propiedad del vehículo en cada operación.
+- Hasta 10 adjuntos de 15 MB por trabajo. Los originales se guardan en un almacén privado y se descargan mediante una ruta autenticada.
+- Copia JSON del vehículo seleccionado, con sus archivos completos. Importar una copia agrega un vehículo nuevo y conserva los demás.
+- Importación explícita del historial de la versión anterior guardado en IndexedDB. Los datos originales del navegador no se eliminan.
+- Control de versión por vehículo: si cambió en otra pestaña o dispositivo, el servidor rechaza el guardado anterior para evitar sobrescribirlo.
+- Dibujo SVG animado según tipo de vehículo y perfiles de modelos disponibles. Los modelos sin dibujo propio se identifican como «Base genérica».
 
-## Almacenamiento
+## Arquitectura
 
-Los datos se guardan en IndexedDB del navegador y del origen donde se abre la app. No hay sincronización con otros dispositivos ni servidor de datos. Borrar los datos de sitios o usar navegación privada puede perder el historial; descargar copias periódicas desde **Copia de seguridad**. Una copia descargada puede restaurarse en otra instalación, navegador o dispositivo. El guardado usa transacciones y solo reemplaza el estado visible tras completarse correctamente.
+La interfaz está en `dist/`, con módulos JavaScript y CSS. `src/cloud.js` se empaqueta en `dist/cloud.js` durante la compilación.
+
+`api/index.js` es la entrada de la API de Vercel. Better Auth administra usuarios, contraseñas, cookies de sesión y límites de intentos. PostgreSQL Neon almacena cuentas, sesiones, vehículos, registros y metadatos de archivos. Vercel Blob guarda los adjuntos de forma privada.
+
+El esquema de `server/schema.sql` usa claves foráneas de vehículo y usuario para conservar la relación de propiedad. Las consultas reciben siempre el usuario de la sesión; nunca confían en un identificador de usuario enviado por el navegador.
+
+Las rutas de escritura validan el origen de la solicitud. Los identificadores de archivos se comprueban contra su usuario y vehículo antes de emitir permisos de subida o guardarlos en un registro. No se exponen credenciales al navegador.
+
+## Desarrollo local
+
+Requiere Node.js 24.
+
+1. Ejecutar `npm ci`.
+2. Vincular la carpeta al proyecto Vercel correcto y obtener sus variables de desarrollo en `.env.local`. `.env.example` enumera los nombres necesarios; no contiene credenciales.
+3. Usar `BETTER_AUTH_URL=http://localhost:4260` para desarrollo.
+4. Ejecutar `npm run db:migrate` una vez al preparar una base.
+5. Ejecutar `npm run dev` y abrir http://localhost:4260.
+
+No subir `.env.local`, credenciales ni la carpeta `.vercel` a GitHub. Producción y desarrollo tienen claves de sesión distintas.
 
 ## Verificación
 
-`npm test` comprueba validación de fechas y kilometraje, copia/restauración de archivos, datos corruptos y búsquedas. `npm run check` verifica la sintaxis de los módulos JavaScript.
+- `npm test`: validaciones, copias, dibujos y compatibilidad de datos anteriores.
+- `node --env-file=.env.local --test --test-isolation=none tests/garage.integration.test.js`: prueba real de dos cuentas, aislamiento de vehículos y control de concurrencia. Crea únicamente cuentas sintéticas con dominio `example.invalid` y las elimina al terminar.
+- `npm run build`: verificación sintáctica y empaquetado del cliente.
 
-La fuente opcional usa Google Fonts; con conexión limitada la interfaz usa las fuentes sans-serif del sistema. El resto de la aplicación no depende de servicios externos.
+En cada compilación de producción en Vercel se ejecutan las migraciones idempotentes. Las migraciones de autenticación rechazan cambios que no se pueden aplicar de forma segura.
+
+El guardado de un vehículo admite hasta 5.000 registros y 2,5 MB de metadatos por operación; los archivos se transfieren por separado a Blob. La restauración conserva el límite de 200 MB de la copia local.
+
+## Publicación
+
+`main` de `Maxi-Max10/bitacoraAuto` está conectado al proyecto `bitacoraauto` de Vercel. Los cambios enviados a esa rama se publican automáticamente. `vercel.json` configura la instalación, compilación, salida estática y funciones en la región de São Paulo, cerca de la base de datos.
+
+Las cuentas nuevas empiezan con un garage vacío. Los usuarios anteriores deben crear su cuenta y elegir **Sumarlo a mi cuenta** para importar el vehículo de ese navegador.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BODY_TYPES, freshState, validateCar, deserializeBackup, serializeBackup } from '../dist/core.js';
+import { BODY_TYPES, VEHICLE_TYPES, freshState, validateCar, deserializeBackup, serializeBackup } from '../dist/core.js';
 import { vehicleAppearance, carArtwork } from '../dist/vehicle.js';
 
 test('elige carrocerías distintas por marca y modelo, con alias y versiones', () => {
@@ -73,4 +73,17 @@ test('conserva la carrocería en las copias y abre copias anteriores', async () 
   assert.equal(old.car.body, 'auto');
   assert.doesNotThrow(() => validateCar(state.car));
   assert.throws(() => validateCar({...state.car, body:'<svg>'}));
+});
+
+test('otros tipos de vehículo conservan su tipo y tienen una figura adecuada', async()=>{
+  for(const type of Object.keys(VEHICLE_TYPES)){
+    const car={...freshState().car,type,make:'Marca',model:'Modelo',year:2020};
+    assert.doesNotThrow(()=>validateCar(car));
+    assert.match(carArtwork(car),/<svg/);
+    const restored=deserializeBackup(await serializeBackup({...freshState(),car}));
+    assert.equal(restored.car.type,type);
+  }
+  assert.equal(vehicleAppearance({type:'motorcycle',make:'Honda',model:'Wave'}).body,'motorcycle');
+  assert.equal(vehicleAppearance({type:'truck',make:'Volvo',model:'FH'}).body,'truck');
+  assert.throws(()=>validateCar({...freshState().car,type:'invalid'}));
 });
