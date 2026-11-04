@@ -49,7 +49,9 @@ test('Fiesta tiene un dibujo propio que cambia con el año, sin usar fotografía
   const drawing = carArtwork(car);
   assert.match(drawing, /data-profile="ford-fiesta-2013"/);
   assert.match(drawing, /car-draw-line/);
-  assert.match(drawing, />Ford<\/text>/);
+  assert.match(drawing, /data-renderer="illustrated"/);
+  assert.match(drawing, /ford-fiesta-2015-v2\.png/);
+  assert.match(drawing, /aria-label="Ilustración animada de FORD FIESTA SE 1\.6 2015"/);
   assert.ok(!drawing.includes('<img'));
   assert.notEqual(drawing, carArtwork({...car, model:'Focus'}));
   assert.equal(vehicleAppearance({...car, body:'sedan'}).profile, null);
@@ -61,6 +63,49 @@ test('el armado del dibujo progresa con marca, modelo y año', () => {
   assert.equal(vehicleAppearance({make:'Ford',model:'Fiesta'}).stage, 2);
   assert.equal(vehicleAppearance({make:'Ford',model:'Fiesta',year:'201'}).stage, 2);
   assert.equal(vehicleAppearance({make:'Ford',model:'Fiesta',year:2015}).stage, 3);
+});
+
+test('cambiar de marca, modelo o generación elige otra ilustración', () => {
+  const cases=[
+    [{make:'Ford',model:'Fiesta SE',year:2015},'ford-fiesta-2015-v2.png'],
+    [{make:'VW',model:'Golf 1.4 TSI',year:2018},'volkswagen-golf-2017-v2.png'],
+    [{make:'Peugeot',model:'208 Allure',year:2016},'peugeot-208-2016-v2.png'],
+    [{make:'Chevrolet',model:'Onix LT',year:2016},'chevrolet-onix-2016-v2.png']
+  ];
+  const sources=cases.map(([car,filename])=>{
+    const drawing=carArtwork(car);
+    assert.match(drawing,/data-artwork="model"/);
+    assert.ok(drawing.includes(filename));
+    assert.equal(vehicleAppearance(car).hasModelIllustration,true);
+    return drawing.match(/<image href="([^"]+)"/)[1];
+  });
+  assert.equal(new Set(sources).size,cases.length);
+  for(const car of [
+    {make:'Ford',model:'Fiesta',year:2010},
+    {make:'Volkswagen',model:'Golf',year:2023},
+    {make:'Peugeot',model:'208',year:2024},
+    {make:'Chevrolet',model:'Onix',year:2019},
+    {make:'Ford',model:'Golf',year:2018},
+    {make:'Otra marca',model:'Modelo nuevo',year:2026},
+    {make:'Ford',model:'Fiesta',year:2015,body:'sedan'}
+  ]){
+    assert.equal(vehicleAppearance(car).hasModelIllustration,false);
+    assert.match(vehicleAppearance(car).drawingLabel,/Base genérica/);
+    assert.ok(!carArtwork(car).includes('data-artwork="model"'));
+    assert.ok(!carArtwork(car).includes('ford-fiesta-2015-v2.png'));
+  }
+});
+
+test('cualquier modelo puede usar una ilustración distinta para cada carrocería',()=>{
+  const sources=Object.keys(BODY_TYPES).map(body=>{
+    const car={make:'Marca nueva',model:'Modelo desconocido',year:2026,body};
+    const drawing=carArtwork(car);
+    assert.match(drawing,/data-artwork="body"/);
+    assert.match(drawing,new RegExp(`data-body="${body}"`));
+    assert.match(drawing,/Aproximación por carrocería/);
+    return drawing.match(/<image href="([^"]+)"/)[1];
+  });
+  assert.equal(new Set(sources).size,Object.keys(BODY_TYPES).length);
 });
 
 test('conserva la carrocería en las copias y abre copias anteriores', async () => {

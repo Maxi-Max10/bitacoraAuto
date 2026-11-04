@@ -1,4 +1,5 @@
 import { carArtwork, vehicleAppearance } from './vehicle.js';
+import { prepareIllustrations } from './vehicle-illustration.js';
 import { CATEGORIES, BODY_TYPES, VEHICLE_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState } from './core.js';
 import * as cloud from './cloud.js';
 
@@ -104,7 +105,7 @@ async function selectVehicle(id){
 function garagePage(){
   const legacyCard=legacy&&!legacyImported()?`<section class="migration-card"><div>${icon('archive')}<h3>Encontramos tu historial anterior</h3><p>${esc(legacy.car.make)} ${esc(legacy.car.model)} · ${legacy.entries.length} registros guardados en este navegador.</p></div><button class="button secondary" data-action="import-legacy">Sumarlo a mi cuenta ${icon('arrow')}</button></section>`:'';
   if(!vehicles.length)return `${legacyCard}<section class="garage-empty"><div class="eyebrow">ESTE ES TU PUNTO DE PARTIDA</div><h2>Un garage para todos<br>tus vehículos<span>.</span></h2><p>Sumá un auto, una moto, una camioneta o cualquier otro vehículo. Cada uno tiene su propio historial.</p><button class="button primary" data-action="new-vehicle">${icon('plus')} Agregar mi primer vehículo</button><div class="garage-types">Auto <span>·</span> Moto <span>·</span> Pickup <span>·</span> Y más</div></section>`;
-  return `${legacyCard}<section class="garage-grid" aria-label="Mis vehículos">${vehicles.map(vehicle=>`<article class="garage-card"><button class="garage-card-main" data-select-vehicle="${esc(vehicle.id)}"><span class="garage-type">${esc(VEHICLE_TYPES[vehicle.type]||'Vehículo')}${vehicle.id===state.id?'<span class="active-vehicle">ACTIVO</span>':''}</span><div class="garage-car-art">${carArtwork(vehicle)}</div><h2>${esc(vehicle.make)} ${esc(vehicle.model)}</h2><p>${vehicle.year?`${vehicle.year} · `:''}${vehicle.plate?esc(vehicle.plate):'Sin patente registrada'}</p><div class="garage-card-stats"><span><strong>${number(vehicle.km)}</strong> km</span><span>${vehicle.entryCount} registros ${icon('arrow')}</span></div></button><button class="garage-delete" data-delete-vehicle="${esc(vehicle.id)}" aria-label="Eliminar ${esc(vehicle.make)} ${esc(vehicle.model)}">${icon('trash')}</button></article>`).join('')}</section>`;
+  return `${legacyCard}<section class="garage-grid" aria-label="Mis vehículos">${vehicles.map(vehicle=>`<article class="garage-card"><button class="garage-card-main" data-select-vehicle="${esc(vehicle.id)}"><span class="garage-type">${esc(VEHICLE_TYPES[vehicle.type]||'Vehículo')}${vehicle.id===state.id?'<span class="active-vehicle">ACTIVO</span>':''}</span><div class="garage-car-art">${carArtwork(vehicle)}<span class="garage-art-caption">${esc(vehicleAppearance(vehicle).drawingLabel)}</span></div><h2>${esc(vehicle.make)} ${esc(vehicle.model)}</h2><p>${vehicle.year?`${vehicle.year} · `:''}${vehicle.plate?esc(vehicle.plate):'Sin patente registrada'}</p><div class="garage-card-stats"><span><strong>${number(vehicle.km)}</strong> km</span><span>${vehicle.entryCount} registros ${icon('arrow')}</span></div></button><button class="garage-delete" data-delete-vehicle="${esc(vehicle.id)}" aria-label="Eliminar ${esc(vehicle.make)} ${esc(vehicle.model)}">${icon('trash')}</button></article>`).join('')}</section>`;
 }
 async function deleteVehicle(id){
   if(saveBusy)return;
@@ -168,6 +169,7 @@ function render() {
   $('#export-data').disabled=!state.id&&!demo;
   $('#demo-banner').hidden=!demo;
   $('#page-content').innerHTML=page==='garage'?garagePage():page==='historial'?historyPage():page==='auto'?carPage():attachmentsPage();
+  prepareIllustrations($('#page-content'));
   if(page==='historial'){ $('#sort-entries').value=sort; renderTimeline(); }
 }
 function readPage(){const hash=location.hash.slice(1);page=['garage','historial','auto','adjuntos'].includes(hash)?hash:'garage';if(!state.id&&!demo)page='garage';render();}
@@ -210,11 +212,12 @@ function renderCarPreview() {
   const key = `${appearance.profileId}:${appearance.stage}:${appearance.trim}`;
   const art = $('#car-preview-art');
   if (art.dataset.drawingKey !== key) { art.innerHTML = carArtwork(car); art.dataset.drawingKey = key; }
+  prepareIllustrations(art);
   art.querySelector('svg').setAttribute('aria-label', `Dibujo animado de ${[car.make, car.model, car.year].filter(Boolean).join(' ') || 'tu auto'}`);
   $('#car-preview-label').textContent = appearance.stage === 0 ? 'Primero, la marca' : appearance.stage === 1 ? 'Ahora, el modelo' : appearance.drawingLabel;
   $('#car-preview-help').textContent = appearance.stage < 2
     ? 'El auto se va dibujando mientras completás marca, modelo y año.'
-    : appearance.profile
+    : appearance.hasModelIllustration
       ? appearance.stage === 3 ? 'Dibujo del modelo y generación seleccionados. Los cambios se ven antes de guardar.' : 'Dibujo del modelo seleccionado. Completá el año para ajustar su generación y terminaciones.'
       : 'Este modelo todavía no tiene un dibujo propio: se muestra una base por carrocería.';
 }
