@@ -1,4 +1,5 @@
-import { CATEGORIES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState, saveState } from './core.js';
+import { carArtwork, vehicleAppearance } from './vehicle.js';
+import { CATEGORIES, BODY_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState, saveState } from './core.js';
 
 const paths = {
   gauge:'<path d="M4.9 19a9 9 0 1 1 14.2 0M12 12l5-5"/><circle cx="12" cy="12" r="1"/>',
@@ -48,11 +49,10 @@ async function persist(next) {
   try { await saveState(db, next); state = next; }
   catch (error) { throw new Error(error?.name === 'QuotaExceededError' ? 'No queda espacio en el navegador. Descargá una copia y liberá espacio antes de guardar.' : 'No se pudo guardar. Tus datos anteriores siguen intactos; intentá de nuevo.'); }
 }
-const carArtwork = `<svg viewBox="0 0 580 250" xmlns="http://www.w3.org/2000/svg" aria-label="Ilustración de un auto" role="img"><defs><linearGradient id="body" x1="0" y1="0" x2=".2" y2="1"><stop stop-color="#e0e7d4"/><stop offset=".42" stop-color="#bac7ab"/><stop offset=".65" stop-color="#92a47e"/><stop offset="1" stop-color="#657757"/></linearGradient><linearGradient id="glass" x1="0" x2="1" y2="1"><stop stop-color="#445544"/><stop offset=".6" stop-color="#2c3930"/><stop offset="1" stop-color="#71816c"/></linearGradient><radialGradient id="rim"><stop stop-color="#8f9c85"/><stop offset=".65" stop-color="#59674f"/><stop offset=".69" stop-color="#aab69a"/><stop offset=".76" stop-color="#67735c"/><stop offset=".8" stop-color="#252d24"/><stop offset="1" stop-color="#151d18"/></radialGradient><filter id="shadow"><feGaussianBlur stdDeviation="7"/></filter></defs><ellipse cx="301" cy="203" rx="205" ry="11" fill="#121b12" opacity=".65" filter="url(#shadow)"/><path d="m81 147 20-29 61-13 51-47q11-10 37-11h105q26 1 44 15l65 46 56 15q14 6 16 20l4 32-13 12-56 6H130l-51-10-6-18z" fill="url(#body)"/><path d="M167 106 219 61q7-5 22-5h44v51zm130-50h57q21 1 35 12l48 39H299z" fill="url(#glass)" stroke="#aebca0" stroke-width="2"/><path d="m179 100 43-35q8-5 17-5h36" fill="none" stroke="#ccd7bf" stroke-opacity=".4" stroke-width="2"/><path d="m310 60 50 1 27 13-3 27h-74z" fill="#718268" opacity=".12"/><path d="m294 109 3 64m149-61 11 64m-277-64-13 64M110 124l331-8" stroke="#5e7450" stroke-width="1.3" opacity=".6"/><path d="m90 143 67 4 26-16 242-4 34 15 72 7-4 24-26 10H125l-37-11z" fill="#b1c39a" opacity=".18"/><path d="m201 115 23-1m95 0h23" stroke="#495d3d" stroke-width="4" stroke-linecap="round"/><path d="m431 105 13 2 4 9-20-1-8-7z" fill="#8f9f7d" stroke="#bdcbaa"/><path d="M121 183a43 43 0 0 1 86 0m211 0a43 43 0 0 1 86 0" fill="#263027"/><circle cx="164" cy="180" r="36" fill="url(#rim)"/><circle cx="461" cy="180" r="36" fill="url(#rim)"/><g stroke="#a7b69a" stroke-width="3.7"><path d="m164 158 0 44m-21-22h43m-37-16 31 32m0-32-31 32m312-38v44m-21-22h43m-37-16 31 32m0-32-31 32"/></g><circle cx="164" cy="180" r="8" fill="#65745b"/><circle cx="461" cy="180" r="8" fill="#65745b"/><circle cx="164" cy="180" r="3" fill="#bfc8b3"/><circle cx="461" cy="180" r="3" fill="#bfc8b3"/><path d="m86 134 30-5-6 13-29 6z" fill="#c9755a"/><path d="m494 128 33 10 2 9-35-4z" fill="#e8edd4"/><path d="m501 151 31 3-1 14-22 3" fill="#3c4b34"/><path d="m93 174 22 2m96 12h206" stroke="#d2dfbc" stroke-opacity=".4" stroke-width="2"/><path d="m262 50 55 0" stroke="#f2f5e9" stroke-opacity=".4" stroke-width="2"/></svg>`;
 
 function hero() {
   const car = current().car; const configured = car.make || car.model;
-  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar auto' : 'Configurar mi auto'}</button><span class="hero-caption">LISTO PARA LO QUE VIENE ↗</span></section>`;
+  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar auto' : 'Configurar mi auto'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).label)} · ILUSTRACIÓN` : 'LISTO PARA LO QUE VIENE ↗'}</span></section>`;
 }
 function stats() {
   const entries = current().entries, latest = sortEntries(entries)[0], sum = entries.reduce((total, e) => total + (e.cost || 0), 0), hasCost = entries.some(e => e.cost !== null);
@@ -124,10 +124,20 @@ async function submitEntry(event) {
     $('#editor-dialog').close();query='';category='todos';sort='newest';render();toast(demo?'Registro guardado en el ejemplo.':editingId?'Cambios guardados.':'Un cuidado más, guardado en tu historia.');
   }catch(error){showError('#entry-error',error.message);}finally{saveBusy=false;$('#save-entry').disabled=false;}
 }
-function openCar(){const f=$('#car-form');f.reset();$('#car-error').hidden=true;Object.entries(current().car).forEach(([key,value])=>f.elements.namedItem(key).value=value);$('#car-dialog').showModal();}
+function renderCarPreview() {
+  const form = $('#car-form');
+  const car = { make: form.elements.namedItem('make').value, model: form.elements.namedItem('model').value, body: form.elements.namedItem('body').value };
+  const appearance = vehicleAppearance(car);
+  $('#car-preview-art').innerHTML = carArtwork(car);
+  $('#car-preview-label').textContent = `${appearance.label}${appearance.source === 'model' ? ' · Detectado por el modelo' : ''}`;
+  $('#car-preview-help').textContent = appearance.source === 'fallback' && car.model.trim()
+    ? 'No reconocimos la carrocería de este modelo. Elegí la que corresponda abajo.'
+    : 'Ilustración orientativa. Podés ajustar la carrocería para cualquier marca o modelo.';
+}
+function openCar(){const f=$('#car-form');f.reset();$('#car-error').hidden=true;['make','model','year','plate','km'].forEach(key=>f.elements.namedItem(key).value=current().car[key]);f.elements.namedItem('body').value=current().car.body||'auto';renderCarPreview();$('#car-dialog').showModal();}
 async function submitCar(event){
   event.preventDefault();if(saveBusy)return;saveBusy=true;const submit=event.target.querySelector('[type=submit]');submit.disabled=true;$('#car-error').hidden=true;
-  try{const f=new FormData(event.target);const car=validateCar({make:f.get('make').trim(),model:f.get('model').trim(),year:f.get('year')===''?'':Number(f.get('year')),plate:f.get('plate').trim().toUpperCase(),km:Number(f.get('km'))});
+  try{const f=new FormData(event.target);const car=validateCar({make:f.get('make').trim(),model:f.get('model').trim(),year:f.get('year')===''?'':Number(f.get('year')),plate:f.get('plate').trim().toUpperCase(),km:Number(f.get('km')),body:f.get('body')});
     if(!car.make||!car.model)throw new Error('Completá la marca y el modelo del auto.');
     if(current().entries.some(e=>e.km>car.km))throw new Error('El kilometraje actual no puede ser menor al de un trabajo registrado.');
     await persist({...current(),car});$('#car-dialog').close();render();toast('Los datos de tu auto están actualizados.');
@@ -172,6 +182,9 @@ function startDemo(){
 }
 
 icons();
+$('#car-body').innerHTML = '<option value="auto">Automática según el modelo</option>' + Object.entries(BODY_TYPES).map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+$('#car-form').addEventListener('input', event => { if (['make','model','body'].includes(event.target.name)) renderCarPreview(); });
+$('#car-body').addEventListener('change', renderCarPreview);
 $('#today').textContent=new Intl.DateTimeFormat('es-AR',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
 window.addEventListener('hashchange',readPage);
 $('#new-entry').addEventListener('click',()=>openEntry());

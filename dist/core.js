@@ -1,7 +1,8 @@
 export const CATEGORIES = { mantenimiento: 'Mantenimiento', reparacion: 'Reparación', mejora: 'Mejora', revision: 'Revisión', otro: 'Otro' };
 export const MAX_FILE_SIZE = 15 * 1024 * 1024;
 export const MAX_FILES = 10;
-export const freshState = () => ({ version: 1, car: { make: '', model: '', year: '', plate: '', km: 0 }, entries: [] });
+export const BODY_TYPES = { hatchback: 'Hatchback / compacto', sedan: 'Sedán', suv: 'SUV / crossover', pickup: 'Pickup', wagon: 'Familiar / rural', coupe: 'Coupé / deportivo', convertible: 'Cabriolet / descapotable', van: 'Utilitario / monovolumen' };
+export const freshState = () => ({ version: 1, car: { make: '', model: '', year: '', plate: '', km: 0, body: 'auto' }, entries: [] });
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 export function validDate(date, time) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return false;
@@ -23,6 +24,7 @@ export function validateEntry(entry) {
 }
 export function validateCar(car) {
   if (!car || typeof car.make !== 'string' || typeof car.model !== 'string' || car.make.length > 60 || car.model.length > 80 || typeof car.plate !== 'string' || car.plate.length > 20 || !Number.isInteger(car.km) || car.km < 0 || car.km > 99999999 || (car.year !== '' && (!Number.isInteger(car.year) || car.year < 1900 || car.year > 2100))) throw new Error('Los datos del auto no son válidos.');
+  if (car.body !== undefined && car.body !== 'auto' && !Object.hasOwn(BODY_TYPES, car.body)) throw new Error('Elegí una carrocería válida.');
   return car;
 }
 export async function serializeBackup(state) {
@@ -37,7 +39,7 @@ export function deserializeBackup(text) {
   try { raw = JSON.parse(text); } catch { throw new Error('El archivo no es una copia JSON válida.'); }
   if (raw?.format !== 'bitacora-auto' || raw.version !== 1 || !Array.isArray(raw.entries) || raw.entries.length > 100000) throw new Error('Elegí una copia de seguridad creada con Bitácora.');
   const c = validateCar(raw.car);
-  const car = { make: c.make, model: c.model, year: c.year, plate: c.plate, km: c.km };
+  const car = { make: c.make, model: c.model, year: c.year, plate: c.plate, km: c.km, body: c.body ?? 'auto' };
   const entryIds = new Set(); const fileIds = new Set();
   const entries = raw.entries.map(e => {
     if (!e || typeof e.id !== 'string' || !e.id || entryIds.has(e.id) || !Array.isArray(e.attachments) || e.attachments.length > MAX_FILES) throw new Error('La copia tiene registros inválidos o repetidos.');

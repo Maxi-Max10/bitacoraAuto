@@ -23,6 +23,7 @@ Los registros guardados en la URL anterior no se transfieren automáticamente a 
 ## Funciones
 
 - Datos del auto: marca, modelo, año, patente y kilometraje actual.
+- Ilustración orientativa que cambia según el modelo. Detecta carrocerías de modelos conocidos y permite elegir hatchback, sedán, SUV, pickup, familiar, coupé, cabriolet o utilitario para cualquier marca. Vista previa al configurar el auto; la elección se guarda y se incluye en la copia de seguridad.
 - Registro, edición y eliminación de trabajos con fecha y hora local, kilómetros, categoría, costo opcional en ARS, taller y notas.
 - Hasta 10 adjuntos por trabajo, de hasta 15 MB cada uno, almacenados como archivos originales en IndexedDB.
 - Historial con búsqueda sin acentos, filtros y orden por fecha o kilometraje.
