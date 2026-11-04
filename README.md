@@ -23,7 +23,7 @@ Los registros guardados en la URL anterior no se transfieren automáticamente a 
 ## Funciones
 
 - Datos del auto: marca, modelo, año, patente y kilometraje actual.
-- Ilustración orientativa que cambia según el modelo. Detecta carrocerías de modelos conocidos y permite elegir hatchback, sedán, SUV, pickup, familiar, coupé, cabriolet o utilitario para cualquier marca. Vista previa al configurar el auto; la elección se guarda y se incluye en la copia de seguridad.
+- Dibujo animado que se traza al completar marca, modelo y año, con vista previa antes de guardar. Incluye perfiles propios para Ford Fiesta (con variantes por año), Volkswagen Golf, Peugeot 208 y Chevrolet Onix dentro de los años definidos en el catálogo. Los modelos sin perfil propio se identifican como «Base genérica» y permiten elegir entre ocho carrocerías. La elección se guarda y se incluye en la copia de seguridad. No usa fotografías ni servicios externos para dibujar el auto.
 - Registro, edición y eliminación de trabajos con fecha y hora local, kilómetros, categoría, costo opcional en ARS, taller y notas.
 - Hasta 10 adjuntos por trabajo, de hasta 15 MB cada uno, almacenados como archivos originales en IndexedDB.
 - Historial con búsqueda sin acentos, filtros y orden por fecha o kilometraje.

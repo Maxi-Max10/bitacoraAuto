@@ -34,10 +34,33 @@ test('acepta cualquier marca con selección manual y respeta su elección', () =
 
 test('los SVG cambian realmente de silueta y escapan la marca y el modelo', () => {
   const drawings = Object.keys(BODY_TYPES).map(body => carArtwork({body}));
-  assert.equal(new Set(drawings.map(svg => svg.match(/<g class="vehicle-bodywork">\s*<path d="([^"]+)"/)[1])).size, Object.keys(BODY_TYPES).length);
+  assert.equal(new Set(drawings.map(svg => svg.match(/<g class="vehicle-bodywork car-paint">\s*<path d="([^"]+)"/)[1])).size, Object.keys(BODY_TYPES).length);
   const svg = carArtwork({make:'<script>alert(1)</script>',model:'" onload="bad'});
   assert.ok(!svg.includes('<script>'));
   assert.ok(!svg.includes(' onload="bad'));
+});
+
+test('Fiesta tiene un dibujo propio que cambia con el año, sin usar fotografías', () => {
+  const car = {make:'FORD', model:'FIESTA SE 1.6', year:2015};
+  assert.equal(vehicleAppearance(car).profileId, 'ford-fiesta-2013');
+  assert.equal(vehicleAppearance({...car, year:2010}).profileId, 'ford-fiesta-2009');
+  assert.equal(vehicleAppearance({...car, year:2019}).profileId, 'ford-fiesta-2018');
+  assert.equal(vehicleAppearance({...car, year:1995}).profile, null);
+  const drawing = carArtwork(car);
+  assert.match(drawing, /data-profile="ford-fiesta-2013"/);
+  assert.match(drawing, /car-draw-line/);
+  assert.match(drawing, />Ford<\/text>/);
+  assert.ok(!drawing.includes('<img'));
+  assert.notEqual(drawing, carArtwork({...car, model:'Focus'}));
+  assert.equal(vehicleAppearance({...car, body:'sedan'}).profile, null);
+});
+
+test('el armado del dibujo progresa con marca, modelo y año', () => {
+  assert.equal(vehicleAppearance({}).stage, 0);
+  assert.equal(vehicleAppearance({make:'Ford'}).stage, 1);
+  assert.equal(vehicleAppearance({make:'Ford',model:'Fiesta'}).stage, 2);
+  assert.equal(vehicleAppearance({make:'Ford',model:'Fiesta',year:'201'}).stage, 2);
+  assert.equal(vehicleAppearance({make:'Ford',model:'Fiesta',year:2015}).stage, 3);
 });
 
 test('conserva la carrocería en las copias y abre copias anteriores', async () => {

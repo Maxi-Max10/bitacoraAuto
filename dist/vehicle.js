@@ -1,7 +1,8 @@
 import { BODY_TYPES, escapeHTML } from './core.js';
+import { modelProfile } from './vehicle-models.js';
 
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-const aliases = { vw: 'volkswagen', volkswagen: 'volkswagen', 'mercedes benz': 'mercedes', 'mercedes-benz': 'mercedes', 'chevy': 'chevrolet', 'alfa romeo': 'alfa' };
+const aliases = { vw: 'volkswagen', volkswagen: 'volkswagen', frod: 'ford', 'mercedes benz': 'mercedes', 'mercedes-benz': 'mercedes', 'chevy': 'chevrolet', 'alfa romeo': 'alfa' };
 
 // These select an illustrative body style, not an exact model or generation.
 // Match within the make to avoid collisions such as Fiat 500 / Peugeot 5008.
@@ -66,7 +67,10 @@ export function vehicleAppearance(car = {}) {
   // An unknown model stays usable; the form lets its owner choose any body.
   body ||= 'hatchback';
   const trim = [...make].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 3;
-  return { body, label: BODY_TYPES[body], source, trim };
+  const profile = modelProfile(brand, model, car.year, body);
+  const stage = !make ? 0 : !model ? 1 : !/^\d{4}$/.test(String(car.year)) ? 2 : 3;
+  return { body, label: BODY_TYPES[body], source, trim, profile, profileId: profile?.id || body, stage,
+    drawingLabel: profile ? profile.label : `${BODY_TYPES[body]} · Base genérica` };
 }
 
 const silhouettes = {
@@ -127,12 +131,12 @@ function wheel(x, y, radius, trim) {
 }
 
 export function carArtwork(car = {}) {
-  const appearance = vehicleAppearance(car), shape = silhouettes[appearance.body];
-  const name = [car.make, car.model].filter(Boolean).join(' ').trim();
-  const label = escapeHTML(name ? `Ilustración orientativa de ${name}. ${appearance.label}.` : 'Ilustración de un auto. Configurá tu marca y modelo.');
+  const appearance = vehicleAppearance(car), shape = appearance.profile || silhouettes[appearance.body];
+  const name = [car.make, car.model, car.year].filter(Boolean).join(' ').trim();
+  const label = escapeHTML(name ? `Dibujo animado de ${name}. ${appearance.profile ? 'Diseño específico del modelo.' : 'Aproximación por carrocería.'}` : 'Dibujo de un auto. Completá la marca, el modelo y el año para darle forma.');
   const y = shape.raised ? 188 : 184, radius = shape.raised ? 37 : 34;
   const lights = appearance.trim === 1 ? 'M481 129 518 141 520 148 479 143Z' : appearance.trim === 2 ? 'M480 130 516 140 519 148 482 145ZM483 149 520 152 520 156 485 153Z' : 'M480 128 516 140 520 151 479 144Z';
-  return `<svg class="vehicle-illustration" data-body="${appearance.body}" viewBox="0 0 580 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}">
+  return `<svg class="vehicle-illustration" data-body="${appearance.body}" data-profile="${appearance.profileId}" data-stage="${appearance.stage}" viewBox="0 0 580 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}">
     <defs>
       <linearGradient id="vehicle-body" x1="0" y1="0" x2="0.15" y2="1"><stop stop-color="#e0e7d4"/><stop offset=".4" stop-color="#bac7ab"/><stop offset=".7" stop-color="#92a47e"/><stop offset="1" stop-color="#657757"/></linearGradient>
       <linearGradient id="vehicle-glass" x1="0" y1="0" x2=".6" y2="1"><stop stop-color="#53634e"/><stop offset=".55" stop-color="#2c3930"/><stop offset="1" stop-color="#71816c"/></linearGradient>
@@ -140,20 +144,27 @@ export function carArtwork(car = {}) {
       <filter id="vehicle-shadow"><feGaussianBlur stdDeviation="6"/></filter>
     </defs>
     <ellipse cx="291" cy="219" rx="231" ry="9" fill="#101a10" opacity=".55" filter="url(#vehicle-shadow)"/>
-    <g class="vehicle-bodywork">
+    <g class="vehicle-bodywork car-paint">
       <path d="${shape.body}" fill="url(#vehicle-body)"/>
       <path d="${shape.glass}" fill="url(#vehicle-glass)" stroke="#b9c7aa" stroke-width="2"/>
       <path d="M${shape.rear} 127 418 119M85 157H488" fill="none" stroke="#d4dfc5" stroke-opacity=".3" stroke-width="2"/>
       <path d="${shape.seams}" fill="none" stroke="#6e815c" stroke-opacity=".7" stroke-width="1.4"/>
       ${shape.handles.map(x => `<path d="M${x} 122h22" stroke="#526747" stroke-width="4" stroke-linecap="round"/>`).join('')}
       ${shape.details || ''}
-      <path d="M${shape.rear} 135  ${shape.rear + 28} 131 ${shape.rear + 23} 145 ${shape.rear - 5} 150Z" fill="#c9755a"/>
-      <path d="${lights}" fill="#e8edd4"/>
-      <path d="M493 155 525 160 523 174 500 177Z" fill="#3c4b34"/>
+      <path class="car-finishing" d="${shape.taillight || `M${shape.rear} 135 ${shape.rear + 28} 131 ${shape.rear + 23} 145 ${shape.rear - 5} 150Z`}" fill="#c9755a"/>
+      <path class="car-finishing" d="${shape.headlight || lights}" fill="#e8edd4"/>
+      <g class="car-finishing">${shape.grille || '<path d="M493 155 525 160 523 174 500 177Z" fill="#3c4b34"/>'}</g>
       <path d="M396 109 411 111 415 119 394 118 387 114Z" fill="#9aaa87" stroke="#c4d0b4"/>
       <path d="M${145 - radius - 7} ${y + 5}a${radius + 7} ${radius + 7} 0 0 1 ${2 * (radius + 7)} 0M${445 - radius - 7} ${y + 5}a${radius + 7} ${radius + 7} 0 0 1 ${2 * (radius + 7)} 0" fill="#263027"/>
       <path d="M193 187H397" stroke="#cad7b6" stroke-opacity=".5" stroke-width="3"/>
     </g>
-    ${wheel(145, y, radius, appearance.trim)}${wheel(445, y, radius, appearance.trim)}
+    <g class="car-wheels">${wheel(145, y, radius, appearance.profile ? 0 : appearance.trim)}${wheel(445, y, radius, appearance.profile ? 0 : appearance.trim)}</g>
+    <g class="car-tracing" fill="none" stroke="#d9e8bc" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path class="car-draw-line" pathLength="1" d="${shape.body}"/>
+      <path class="car-draw-line car-draw-detail" pathLength="1" d="${shape.glass}"/>
+      <path class="car-draw-line car-draw-detail" pathLength="1" d="${shape.seams}"/>
+      <circle class="car-draw-line car-draw-detail" pathLength="1" cx="145" cy="${y}" r="${radius}"/>
+      <circle class="car-draw-line car-draw-detail" pathLength="1" cx="445" cy="${y}" r="${radius}"/>
+    </g>
   </svg>`;
 }

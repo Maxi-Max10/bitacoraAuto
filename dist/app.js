@@ -52,7 +52,7 @@ async function persist(next) {
 
 function hero() {
   const car = current().car; const configured = car.make || car.model;
-  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar auto' : 'Configurar mi auto'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).label)} · ILUSTRACIÓN` : 'LISTO PARA LO QUE VIENE ↗'}</span></section>`;
+  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar auto' : 'Configurar mi auto'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).drawingLabel)} · ILUSTRACIÓN` : 'LISTO PARA LO QUE VIENE ↗'}</span></section>`;
 }
 function stats() {
   const entries = current().entries, latest = sortEntries(entries)[0], sum = entries.reduce((total, e) => total + (e.cost || 0), 0), hasCost = entries.some(e => e.cost !== null);
@@ -126,13 +126,18 @@ async function submitEntry(event) {
 }
 function renderCarPreview() {
   const form = $('#car-form');
-  const car = { make: form.elements.namedItem('make').value, model: form.elements.namedItem('model').value, body: form.elements.namedItem('body').value };
+  const car = { make: form.elements.namedItem('make').value, model: form.elements.namedItem('model').value, year: form.elements.namedItem('year').value, body: form.elements.namedItem('body').value };
   const appearance = vehicleAppearance(car);
-  $('#car-preview-art').innerHTML = carArtwork(car);
-  $('#car-preview-label').textContent = `${appearance.label}${appearance.source === 'model' ? ' · Detectado por el modelo' : ''}`;
-  $('#car-preview-help').textContent = appearance.source === 'fallback' && car.model.trim()
-    ? 'No reconocimos la carrocería de este modelo. Elegí la que corresponda abajo.'
-    : 'Ilustración orientativa. Podés ajustar la carrocería para cualquier marca o modelo.';
+  const key = `${appearance.profileId}:${appearance.stage}:${appearance.trim}`;
+  const art = $('#car-preview-art');
+  if (art.dataset.drawingKey !== key) { art.innerHTML = carArtwork(car); art.dataset.drawingKey = key; }
+  art.querySelector('svg').setAttribute('aria-label', `Dibujo animado de ${[car.make, car.model, car.year].filter(Boolean).join(' ') || 'tu auto'}`);
+  $('#car-preview-label').textContent = appearance.stage === 0 ? 'Primero, la marca' : appearance.stage === 1 ? 'Ahora, el modelo' : appearance.drawingLabel;
+  $('#car-preview-help').textContent = appearance.stage < 2
+    ? 'El auto se va dibujando mientras completás marca, modelo y año.'
+    : appearance.profile
+      ? appearance.stage === 3 ? 'Dibujo del modelo y generación seleccionados. Los cambios se ven antes de guardar.' : 'Dibujo del modelo seleccionado. Completá el año para ajustar su generación y terminaciones.'
+      : 'Este modelo todavía no tiene un dibujo propio: se muestra una base por carrocería.';
 }
 function openCar(){const f=$('#car-form');f.reset();$('#car-error').hidden=true;['make','model','year','plate','km'].forEach(key=>f.elements.namedItem(key).value=current().car[key]);f.elements.namedItem('body').value=current().car.body||'auto';renderCarPreview();$('#car-dialog').showModal();}
 async function submitCar(event){
@@ -183,7 +188,7 @@ function startDemo(){
 
 icons();
 $('#car-body').innerHTML = '<option value="auto">Automática según el modelo</option>' + Object.entries(BODY_TYPES).map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
-$('#car-form').addEventListener('input', event => { if (['make','model','body'].includes(event.target.name)) renderCarPreview(); });
+$('#car-form').addEventListener('input', event => { if (['make','model','year','body'].includes(event.target.name)) renderCarPreview(); });
 $('#car-body').addEventListener('change', renderCarPreview);
 $('#today').textContent=new Intl.DateTimeFormat('es-AR',{day:'numeric',month:'long',year:'numeric'}).format(new Date());
 window.addEventListener('hashchange',readPage);
