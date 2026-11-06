@@ -1,7 +1,7 @@
 import {icon,icons} from './icons.js';
 import {setupSharing} from './sharing.js';
 import {historySearch,historySearchResults,updateHistorySearch,setupHistorySearch} from './history-search.js';
-import { carArtwork, vehicleAppearance } from './vehicle.js';
+import { carArtwork, vehicleAppearance, vehicleModelSuggestions } from './vehicle.js';
 import { prepareIllustrations } from './vehicle-illustration.js';
 import { CATEGORIES, BODY_TYPES, VEHICLE_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState } from './core.js';
 import * as cloud from './cloud.js';
@@ -186,6 +186,8 @@ function renderCarPreview() {
   const form = $('#car-form');
   const car = { make: form.elements.namedItem('make').value, model: form.elements.namedItem('model').value, year: form.elements.namedItem('year').value, type: form.elements.namedItem('type').value, body: form.elements.namedItem('body').value };
   const appearance = vehicleAppearance(car);
+  const suggestions=$('#vehicle-model-suggestions');
+  if(suggestions.dataset.make!==car.make){suggestions.replaceChildren(...vehicleModelSuggestions(car.make).map(name=>{const option=document.createElement('option');option.value=name;return option;}));suggestions.dataset.make=car.make;}
   $('#body-type-label').hidden=!['car','suv','pickup','van'].includes(car.type);
   const key = `${appearance.profileId}:${appearance.stage}:${appearance.trim}`;
   const art = $('#car-preview-art');
@@ -196,8 +198,14 @@ function renderCarPreview() {
   $('#car-preview-help').textContent = appearance.stage < 2
     ? 'El auto se va dibujando mientras completás marca, modelo y año.'
     : appearance.hasModelIllustration
-      ? appearance.stage === 3 ? 'Dibujo del modelo y generación seleccionados. Los cambios se ven antes de guardar.' : 'Dibujo del modelo seleccionado. Completá el año para ajustar su generación y terminaciones.'
-      : 'Este modelo todavía no tiene un dibujo propio: se muestra una base por carrocería.';
+      ? 'Ilustración de referencia del modelo y la generación seleccionados. Los cambios se ven antes de guardar.'
+      : appearance.stage===2&&appearance.recognizedModel
+        ? `Reconocimos ${appearance.recognizedModel}. Completá el año para seleccionar su generación. Mientras tanto, se muestra un esquema de la carrocería.`
+        : appearance.source==='fallback'
+          ? 'No identificamos este modelo. Elegí una sugerencia o la carrocería. El esquema no representa un modelo específico.'
+          : appearance.source==='type'
+            ? 'Figura orientativa del tipo de vehículo seleccionado.'
+            : 'Este modelo y año todavía no tienen ilustración propia. Se muestra únicamente un esquema de la carrocería.';
 }
 function openCar(add=false){
   creatingCar=add&&!demo;const f=$('#car-form');f.reset();$('#car-error').hidden=true;

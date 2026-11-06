@@ -1,12 +1,11 @@
-import {carIllustrations,bodyIllustrations} from './illustrations/catalog.js';
+import {carIllustrations} from './illustrations/catalog.js';
 
 export function illustratedVehicle(car,appearance,escape){
-  const modelAsset=carIllustrations[appearance.profileId];
-  const asset=modelAsset || (appearance.stage>=2 ? bodyIllustrations[appearance.body] : null);
+  const asset=appearance.stage===3?carIllustrations[appearance.profileId]:null;
   if(!asset)return null;
   const name=[car.make,car.model,car.year].filter(Boolean).join(' ');
-  const label=escape(`Ilustración animada de ${name}${modelAsset?'':'. Aproximación por carrocería.'}`);
-  return `<svg class="vehicle-illustration illustrated-car" data-renderer="illustrated" data-artwork="${modelAsset?'model':'body'}" data-body="${appearance.body}" data-profile="${appearance.profileId}" data-stage="${appearance.stage}" viewBox="${asset.viewBox}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}">
+  const label=escape(`Ilustración animada de ${name}`);
+  return `<svg class="vehicle-illustration illustrated-car" data-renderer="illustrated" data-artwork="model" data-body="${appearance.body}" data-profile="${appearance.profileId}" data-stage="${appearance.stage}" viewBox="${asset.viewBox}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}">
     <g class="illustration-paint"><image href="${asset.file}" width="${asset.width}" height="${asset.height}" preserveAspectRatio="xMidYMid meet"/></g>
     <g class="car-tracing illustration-tracing" fill="none" stroke="#cfe0bc" stroke-linecap="round" stroke-linejoin="round">
       <path class="car-draw-line illustration-outline" pathLength="1" d="${asset.outline}"/>

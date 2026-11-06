@@ -6,6 +6,9 @@ import { carIllustrations } from './illustrations/catalog.js';
 
 const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const aliases = { vw: 'volkswagen', volkswagen: 'volkswagen', frod: 'ford', 'mercedes benz': 'mercedes', 'mercedes-benz': 'mercedes', 'chevy': 'chevrolet', 'alfa romeo': 'alfa' };
+const makeKey=make=>aliases[normalize(make)]||(normalize(make)==='land rover'?'landrover':normalize(make));
+const modelKey=(make,model)=>make==='toyota'?normalize(model).replace(/\b(corrolla|corrola|corola)\b/g,'corolla'):normalize(model);
+const displayModel=name=>name.replace(/\b[a-z]/g,letter=>letter.toUpperCase());
 
 // These select an illustrative body style, not an exact model or generation.
 // Match within the make to avoid collisions such as Fiat 500 / Peugeot 5008.
@@ -53,12 +56,17 @@ const hints = [
   ['coupe', /\b(coupe|deportivo)\b/]
 ];
 
+export function vehicleModelSuggestions(make){
+  return [...new Set(Object.values(models[makeKey(make)]||{}).flatMap(names=>names.split('|')))].sort().map(displayModel);
+}
+
 export function vehicleAppearance(car = {}) {
-  const make = normalize(car.make), model = normalize(car.model);
+  const make = normalize(car.make), brand=makeKey(car.make), model=modelKey(brand,car.model);
   if(car.type&&Object.hasOwn(VEHICLE_TYPES,car.type)&&!['car','pickup','suv','van'].includes(car.type)){
     return {body:car.type,label:VEHICLE_TYPES[car.type],drawingLabel:VEHICLE_TYPES[car.type],source:'type',profile:null,profileId:`type-${car.type}`,trim:0,stage:!make?0:!model?1:!/^\d{4}$/.test(String(car.year))?2:3};
   }
-  const brand = aliases[make] || (make === 'land rover' ? 'landrover' : make);
+  const catalogue=models[brand]||{};
+  const match=Object.entries(catalogue).flatMap(([body,names])=>names.split('|').map(name=>({body,name}))).filter(({name})=>` ${model} `.includes(` ${name} `)).sort((a,b)=>b.name.length-a.name.length)[0];
   let body = Object.hasOwn(BODY_TYPES, car.body) ? car.body : ['pickup','suv','van'].includes(car.type)?car.type:null;
   let source = body ? 'manual' : 'fallback';
   if (!body) {
@@ -66,9 +74,7 @@ export function vehicleAppearance(car = {}) {
     if (hint) { body = hint[0]; source = 'model'; }
   }
   if (!body) {
-    const catalogue = models[brand] || {};
-    const match = Object.entries(catalogue).find(([, names]) => names.split('|').some(name => ` ${model} `.includes(` ${name} `)));
-    if (match) { body = match[0]; source = 'model'; }
+    if (match) { body = match.body; source = 'model'; }
   }
   // An unknown model stays usable; the form lets its owner choose any body.
   body ||= 'hatchback';
@@ -76,8 +82,9 @@ export function vehicleAppearance(car = {}) {
   const profile = modelProfile(brand, model, car.year, body);
   const hasModelIllustration = Boolean(profile && Object.hasOwn(carIllustrations, profile.id));
   const stage = !make ? 0 : !model ? 1 : !/^\d{4}$/.test(String(car.year)) ? 2 : 3;
-  return { body, label: BODY_TYPES[body], source, trim, profile, profileId: profile?.id || body, stage, hasModelIllustration,
-    drawingLabel: hasModelIllustration ? profile.label : `${BODY_TYPES[body]} · Base genérica` };
+  const recognizedModel=match?displayModel(match.name):'';
+  return { body, label: BODY_TYPES[body], source, trim, profile, profileId: profile?.id || body, stage, hasModelIllustration,recognizedModel,
+    drawingLabel: hasModelIllustration ? profile.label : stage===2&&recognizedModel?`${recognizedModel} · Completá el año`:source==='fallback'&&stage>=2?'Modelo sin identificar · Esquema orientativo':`${BODY_TYPES[body]} · Esquema orientativo` };
 }
 
 const silhouettes = {
@@ -138,15 +145,15 @@ function wheel(x, y, radius, trim) {
 }
 
 export function carArtwork(car = {}) {
-  const appearance = vehicleAppearance(car), shape = appearance.profile || silhouettes[appearance.body];
+  const appearance = vehicleAppearance(car), shape = silhouettes[appearance.body];
   if(appearance.source==='type')return kindArtwork(car,appearance,escapeHTML);
   const illustrated=illustratedVehicle(car,appearance,escapeHTML);
   if(illustrated)return illustrated;
   const name = [car.make, car.model, car.year].filter(Boolean).join(' ').trim();
-  const label = escapeHTML(name ? `Dibujo animado de ${name}. ${appearance.profile ? 'Diseño específico del modelo.' : 'Aproximación por carrocería.'}` : 'Dibujo de un auto. Completá la marca, el modelo y el año para darle forma.');
+  const label = escapeHTML(name ? `Esquema orientativo${appearance.source==='fallback'?'':` de ${appearance.label}`} para ${name}. No es una ilustración del modelo.` : 'Esquema de un auto. Completá la marca, el modelo y el año para identificarlo.');
   const y = shape.raised ? 188 : 184, radius = shape.raised ? 37 : 34;
   const lights = appearance.trim === 1 ? 'M481 129 518 141 520 148 479 143Z' : appearance.trim === 2 ? 'M480 130 516 140 519 148 482 145ZM483 149 520 152 520 156 485 153Z' : 'M480 128 516 140 520 151 479 144Z';
-  return `<svg class="vehicle-illustration" data-body="${appearance.body}" data-profile="${appearance.profileId}" data-stage="${appearance.stage}" viewBox="0 0 580 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}">
+  return `<svg class="vehicle-illustration vehicle-schematic" data-renderer="schematic" data-artwork="body" data-body="${appearance.body}" data-profile="${appearance.profileId}" data-stage="${appearance.stage}" viewBox="0 0 580 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}">
     <defs>
       <linearGradient id="vehicle-body" x1="0" y1="0" x2="0.15" y2="1"><stop stop-color="#f5f7f7"/><stop offset=".28" stop-color="#dce3e5"/><stop offset=".52" stop-color="#b3c0c4"/><stop offset=".64" stop-color="#d0d9dc"/><stop offset="1" stop-color="#788b91"/></linearGradient>
       <linearGradient id="vehicle-glass" x1="0" y1="0" x2=".6" y2="1"><stop stop-color="#657b85"/><stop offset=".55" stop-color="#23343d"/><stop offset="1" stop-color="#425a65"/></linearGradient>

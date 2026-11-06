@@ -69,19 +69,25 @@ const onix = {
 export function modelProfile(make, model, year, body) {
   const has = name => (` ${model} `).includes(` ${name} `);
   const y = /^\d{4}$/.test(String(year)) ? Number(year) : null;
+  if(!y)return null;
+  if(make==='toyota'&&has('corolla')&&!/\b(cross|hatch|hatchback|wagon|touring|rural)\b/.test(model)&&body==='sedan'){
+    if(y>=2014&&y<=2016)return {id:'toyota-corolla-2014',label:'Toyota Corolla · 2014–2016'};
+    if(y>=2017&&y<=2019)return {id:'toyota-corolla-2017',label:'Toyota Corolla · 2017–2019'};
+    if(y>=2020&&y<=2026)return {id:'toyota-corolla-2020',label:'Toyota Corolla · 2020–2026'};
+  }
   if (make === 'ford' && has('fiesta') && body === 'hatchback') {
     if (y && y >= 2002 && y <= 2008) return { ...fiestaClassic, label: 'Ford Fiesta · 2002–2008' };
     if (y && y >= 2009 && y <= 2012) return fiestaPreFacelift;
     if (y && y >= 2018 && y <= 2023) return fiestaNew;
-    if (!y || (y >= 2013 && y <= 2017)) return fiestaModern;
+    if (y >= 2013 && y <= 2017) return fiestaModern;
   }
   if (make === 'volkswagen' && has('golf') && body === 'hatchback') {
-    if(!y||(y>=2013&&y<=2020))return {...golf,id:'volkswagen-golf-mk7',label:'Volkswagen Golf · 2013–2020'};
+    if(y>=2013&&y<=2020)return {...golf,id:'volkswagen-golf-mk7',label:'Volkswagen Golf · 2013–2020'};
     if(y>=2009&&y<=2012)return {...golf,id:'volkswagen-golf-mk6',label:'Volkswagen Golf · 2009–2012'};
   }
-  if (make === 'peugeot' && has('208') && body === 'hatchback' && (!y || (y >= 2013 && y <= 2019))) return peugeot208;
+  if (make === 'peugeot' && has('208') && body === 'hatchback' && y >= 2013 && y <= 2019) return peugeot208;
   if (make === 'chevrolet' && has('onix') && body === 'hatchback') {
-    if(!y||(y>=2013&&y<=2016))return {...onix,id:'chevrolet-onix-2013',label:'Chevrolet Onix · 2013–2016'};
+    if(y>=2013&&y<=2016)return {...onix,id:'chevrolet-onix-2013',label:'Chevrolet Onix · 2013–2016'};
     if(y>=2017&&y<=2019)return {...onix,id:'chevrolet-onix-2017',label:'Chevrolet Onix · 2017–2019'};
   }
   return null;

@@ -38,3 +38,9 @@ Se amplió la búsqueda de ambas vistas con un campo visible a todo el ancho, et
 Se comprobaron búsquedas de varias palabras entre campos, fechas locales, fechas con nombre de mes, kilómetros con separador de miles y nombres de adjuntos. También se verificaron Escape, el botón de borrado, conservación del foco y combinación con categorías y orden. La búsqueda pública recibe solo los adjuntos autorizados para ese enlace.
 
 Las mismas pruebas de búsqueda se ejecutaron en los cuatro motores indicados arriba y en los tamaños de celular, tablet y escritorio, sin desbordes ni errores JavaScript. La suite de lógica incluye una prueba de regresión de estos casos en `tests/core.test.js`.
+
+## Identidad del vehículo y Corolla
+
+Se reprodujo el caso Toyota «corrolla»: ahora se reconoce como Corolla sedán. Se verificaron las variantes Corolla, corrolla, corrola y corola XEI; sin año no se elige una generación ni se muestra una imagen genérica de otro auto. Al completar 2015, 2018 o 2022 se seleccionan tres recursos diferentes del Corolla. Corolla Cross, hatchback, otra marca o años sin recurso conservan un esquema explícito.
+
+La comprobación de navegador pasó en Chrome, Edge, Firefox y WebKit: sugerencias limitadas a la marca, cambio de Fiesta a Corolla sin reutilizar el dibujo anterior, año incompleto que retira la imagen anterior, animación de contornos y color, movimiento reducido, vistas de 320/390/1440 píxeles, garage y consulta pública. Estas comprobaciones usaron datos de interfaz simulados y no escribieron en cuentas ni en la base.

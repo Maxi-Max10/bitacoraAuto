@@ -6,6 +6,8 @@ Recursos creados con la herramienta integrada ImageGen (modo **generate**, no CL
 
 Todos los PNG y sus contornos están en [dist/illustrations](../dist/illustrations/). El registro es [catalog.js](../dist/illustrations/catalog.js).
 
+El Corolla tiene tres recursos propios adicionales, detallados en [referencias y prompts del Corolla](corolla-illustrations.md). Los archivos `body-*.png` de la tabla se conservan como recursos históricos: **ya no se seleccionan como reemplazo de un modelo**.
+
 | Archivo | Selección |
 | --- | --- |
 | ford-fiesta-2015-v2.png | Ford Fiesta hatchback, 2013–2017 |
@@ -21,9 +23,9 @@ Todos los PNG y sus contornos están en [dist/illustrations](../dist/illustratio
 | body-convertible-v2.png | Base genérica: convertible |
 | body-van-v2.png | Base genérica: van |
 
-Las ilustraciones por modelo representan su generación, no cada acabado o versión regional. Si no hay un recurso del modelo y año elegidos, se muestra la base de su carrocería con la etiqueta «Base genérica». No se reutiliza el auto seleccionado anteriormente. La carrocería se reconoce por marca/modelo o se elige en el formulario. Motos, camiones y otros vehículos conservan las figuras SVG de su tipo.
+Las ilustraciones por modelo representan su generación, no cada acabado o versión regional. Si no hay un recurso del modelo y año elegidos, se muestra únicamente un esquema de líneas con la etiqueta «Esquema orientativo». No se usa una imagen genérica que pueda confundirse con otro modelo. La carrocería se reconoce por marca/modelo o se elige en el formulario. Motos, camiones y otros vehículos conservan las figuras SVG de su tipo.
 
-La etapa de marca muestra una silueta; el modelo activa la ilustración y el año selecciona la generación disponible. Los contornos parten del alfa y las zonas oscuras del PNG, sin modificar el raster original. Con movimiento reducido se muestra el resultado sin animación. Si un recurso no carga, permanece su contorno.
+La marca y el modelo arman un esquema. El año completo habilita la ilustración de la generación disponible; sin año no se elige una generación arbitraria. Los contornos parten del alfa y las zonas oscuras del PNG, sin modificar el raster original. Con movimiento reducido se muestra el resultado sin animación. Si un recurso no carga, permanece su contorno.
 
 ## Referencias
 

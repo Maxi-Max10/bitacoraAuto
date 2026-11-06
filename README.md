@@ -17,7 +17,7 @@ Producción: https://bitacoraauto.vercel.app
 - Copia JSON del vehículo seleccionado, con sus archivos completos. Importar una copia agrega un vehículo nuevo y conserva los demás.
 - Importación explícita del historial de la versión anterior guardado en IndexedDB. Los datos originales del navegador no se eliminan.
 - Control de versión por vehículo: si cambió en otra pestaña o dispositivo, el servidor rechaza el guardado anterior para evitar sobrescribirlo.
-- Ilustración animada que se arma al completar marca, modelo y año. Fiesta, Golf, 208 y Onix tienen ilustraciones por generación; los demás autos usan una de ocho bases por carrocería, identificadas como «Base genérica». Otros tipos de vehículo conservan su figura propia. [Catálogo y generación de los recursos](docs/vehicle-illustrations.md).
+- Ilustración animada al identificar marca, modelo y año. Fiesta, Golf, 208, Onix y Corolla tienen ilustraciones por generación. Sin año o sin un recurso específico, se muestra un «Esquema orientativo» de líneas, sin reemplazarlo por la imagen de otro auto. Las sugerencias se limitan a la marca elegida y Corolla reconoce errores habituales como «corrolla». Otros tipos de vehículo conservan su figura propia. [Catálogo](docs/vehicle-illustrations.md) y [referencias y prompts del Corolla](docs/corolla-illustrations.md).
 
 ## Arquitectura
 

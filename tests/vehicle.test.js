@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BODY_TYPES, VEHICLE_TYPES, freshState, validateCar, deserializeBackup, serializeBackup } from '../dist/core.js';
-import { vehicleAppearance, carArtwork } from '../dist/vehicle.js';
+import { vehicleAppearance, carArtwork, vehicleModelSuggestions } from '../dist/vehicle.js';
 
 test('elige carrocerías distintas por marca y modelo, con alias y versiones', () => {
   for (const [make, model, body] of [
@@ -70,7 +70,10 @@ test('cambiar de marca, modelo o generación elige otra ilustración', () => {
     [{make:'Ford',model:'Fiesta SE',year:2015},'ford-fiesta-2015-v2.png'],
     [{make:'VW',model:'Golf 1.4 TSI',year:2018},'volkswagen-golf-2017-v2.png'],
     [{make:'Peugeot',model:'208 Allure',year:2016},'peugeot-208-2016-v2.png'],
-    [{make:'Chevrolet',model:'Onix LT',year:2016},'chevrolet-onix-2016-v2.png']
+    [{make:'Chevrolet',model:'Onix LT',year:2016},'chevrolet-onix-2016-v2.png'],
+    [{make:'Toyota',model:'Corolla XEI',year:2015},'toyota-corolla-2015-v1.png'],
+    [{make:'Toyota',model:'Corolla XEI',year:2018},'toyota-corolla-2018-v1.png'],
+    [{make:'Toyota',model:'Corolla XEI',year:2022},'toyota-corolla-2022-v1.png']
   ];
   const sources=cases.map(([car,filename])=>{
     const drawing=carArtwork(car);
@@ -90,22 +93,56 @@ test('cambiar de marca, modelo o generación elige otra ilustración', () => {
     {make:'Ford',model:'Fiesta',year:2015,body:'sedan'}
   ]){
     assert.equal(vehicleAppearance(car).hasModelIllustration,false);
-    assert.match(vehicleAppearance(car).drawingLabel,/Base genérica/);
+    assert.match(vehicleAppearance(car).drawingLabel,/Esquema orientativo/);
     assert.ok(!carArtwork(car).includes('data-artwork="model"'));
     assert.ok(!carArtwork(car).includes('ford-fiesta-2015-v2.png'));
   }
 });
 
-test('cualquier modelo puede usar una ilustración distinta para cada carrocería',()=>{
+test('un modelo sin ilustración muestra un esquema y nunca una imagen de otro auto',()=>{
   const sources=Object.keys(BODY_TYPES).map(body=>{
     const car={make:'Marca nueva',model:'Modelo desconocido',year:2026,body};
     const drawing=carArtwork(car);
     assert.match(drawing,/data-artwork="body"/);
+    assert.match(drawing,/data-renderer="schematic"/);
     assert.match(drawing,new RegExp(`data-body="${body}"`));
-    assert.match(drawing,/Aproximación por carrocería/);
-    return drawing.match(/<image href="([^"]+)"/)[1];
+    assert.match(drawing,/No es una ilustración del modelo/);
+    assert.ok(!drawing.includes('<image'));
+    return drawing.match(/<g class="vehicle-bodywork car-paint">\s*<path d="([^"]+)"/)[1];
   });
   assert.equal(new Set(sources).size,Object.keys(BODY_TYPES).length);
+});
+
+test('reconoce Corolla con errores habituales y exige año antes de elegir generación',()=>{
+  for(const model of ['Corolla','corrolla','CORROLA','corola XEI']){
+    const pending={make:'toyota',model,body:'auto',year:''};
+    assert.equal(vehicleAppearance(pending).body,'sedan');
+    assert.equal(vehicleAppearance(pending).recognizedModel,'Corolla');
+    assert.equal(vehicleAppearance(pending).hasModelIllustration,false);
+    assert.match(vehicleAppearance(pending).drawingLabel,/Completá el año/);
+    assert.ok(!carArtwork(pending).includes('<image'));
+    assert.match(carArtwork({...pending,year:2015}),/toyota-corolla-2015-v1\.png/);
+    assert.match(carArtwork({...pending,year:2018}),/toyota-corolla-2018-v1\.png/);
+    assert.match(carArtwork({...pending,year:2022}),/toyota-corolla-2022-v1\.png/);
+  }
+  for(const car of [
+    {make:'Toyota',model:'Corolla',year:1998},
+    {make:'Toyota',model:'Corolla Cross',year:2022},
+    {make:'Toyota',model:'Corolla Cross',year:2022,body:'sedan'},
+    {make:'Toyota',model:'Corolla Hatchback',year:2022},
+    {make:'Ford',model:'Corolla',year:2022},
+    {make:'Toyota',model:'corrolla',year:'202'}
+  ])assert.ok(!carArtwork(car).includes('<image'),JSON.stringify(car));
+  assert.equal(vehicleAppearance({make:'Toyota',model:'corrolla cross',year:2022}).body,'suv');
+  for(const [make,model] of [['Ford','Fiesta'],['VW','Golf'],['Peugeot','208'],['Chevrolet','Onix']])assert.ok(!carArtwork({make,model}).includes('<image'),'sin año no inventa una generación');
+});
+
+test('sugiere modelos únicamente de la marca seleccionada',()=>{
+  assert.ok(vehicleModelSuggestions('toyota').includes('Corolla'));
+  assert.ok(vehicleModelSuggestions('Toyota').includes('Corolla Cross'));
+  assert.ok(!vehicleModelSuggestions('Toyota').includes('Fiesta'));
+  assert.ok(vehicleModelSuggestions('VW').includes('Golf'));
+  assert.deepEqual(vehicleModelSuggestions('Marca desconocida'),[]);
 });
 
 test('conserva la carrocería en las copias y abre copias anteriores', async () => {

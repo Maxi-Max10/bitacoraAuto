@@ -37,6 +37,10 @@
 @media(prefers-reduced-motion:reduce){.illustrated-car.is-ready .illustration-paint{animation:none;opacity:1}.illustrated-car[data-stage="2"].is-ready .illustration-paint{opacity:.62}.illustrated-car .illustration-tracing{animation:none;opacity:0}}
 .car-preview:has(.illustrated-car),.garage-car-art:has(.illustrated-car){background-color:#252c26}
 .vehicle-illustration[data-stage="1"] .car-tracing{opacity:.6;animation:none}
+.vehicle-schematic .car-paint,.vehicle-schematic .car-wheels{display:none}
+.vehicle-schematic .car-tracing{opacity:.8;animation:none;stroke:#bac9c4;stroke-width:1.5}
+.vehicle-schematic[data-stage="0"] .car-tracing{opacity:.4}
+.vehicle-schematic[data-stage="1"] .car-tracing{opacity:.55}
 @keyframes car-ink{0%,60%{opacity:.85}100%{opacity:0}}
 .garage-car-art,.garage-car-art:has(.illustrated-car){height:180px;position:relative}
 .garage-car-art svg,.garage-car-art .illustrated-car{height:158px;margin-bottom:12px}
