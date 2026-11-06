@@ -4,8 +4,15 @@ import {listVehicles,createVehicle,loadVehicle,storeVehicle,removeVehicle,ownedV
 import {MAX_FILE_SIZE} from '../dist/core.js';
 import {handleUpload} from '@vercel/blob/client';
 import {get,head,del} from '@vercel/blob';
+import {shareStatus,createShare,revokeShare,publicHistory,publicFile} from '../server/shares.js';
 
-function json(value,status=200) { return Response.json(value,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}}); }
+function json(value,status=200,headers={}) { return Response.json(value,{status,headers:{'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow',...headers}}); }
+async function fileResponse(file,url){
+  const blob=await get(file.pathname,{access:'private'});if(!blob||blob.statusCode!==200)fail('El archivo no está disponible.',404);
+  const inline=/^image\/(png|jpeg|webp|gif|avif|bmp)$/i.test(file.mime)&&url.searchParams.get('download')!=='1';
+  const filename=encodeURIComponent(file.name).replace(/['()]/g,c=>'%'+c.charCodeAt(0).toString(16));
+  return new Response(blob.stream,{headers:{'Content-Type':inline?file.mime:'application/octet-stream','Content-Length':String(file.size),'Content-Disposition':`${inline?'inline':'attachment'}; filename*=UTF-8''${filename}`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox",'Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow'}});
+}
 function originCheck(request) {
   const expected=new URL(process.env.BETTER_AUTH_URL||'https://bitacoraauto.vercel.app').origin;
   if(request.headers.get('origin')!==expected)fail('El origen de la solicitud no está permitido.',403);
@@ -60,11 +67,25 @@ export async function handleRequest(request) {
     const url=new URL(request.url),path=url.pathname.replace(/\/$/,'');
     if(path.startsWith('/api/auth/'))return await authentication().handler(request);
     if(path==='/api/upload'&&request.method==='POST')return await uploadHandler(request);
+    if(path.startsWith('/api/public/')){
+      if(request.method!=='GET')return json({error:'El historial compartido es de solo lectura.'},405,{Allow:'GET'});
+      const shared=path.match(/^\/api\/public\/([^/]+)(?:\/files\/([^/]+))?$/);
+      if(!shared)fail('Enlace no encontrado.',404);
+      if(shared[2])return await fileResponse(await publicFile(shared[1],shared[2]),url);
+      return json(await publicHistory(shared[1]));
+    }
     const user=await authenticatedUser(request);
     if(!['GET','HEAD'].includes(request.method))originCheck(request);
     if(path==='/api/vehicles'){
       if(request.method==='GET')return json({vehicles:await listVehicles(user.id),user:{id:user.id,name:user.name,email:user.email}});
       if(request.method==='POST')return json(await createVehicle(user.id,await bodyJSON(request)),201);
+    }
+    const sharing=path.match(/^\/api\/vehicles\/([^/]+)\/share$/);
+    if(sharing){
+      if(request.method==='GET')return json(await shareStatus(user.id,sharing[1]));
+      if(request.method==='POST')return json(await createShare(user.id,sharing[1],await bodyJSON(request)),201);
+      if(request.method==='DELETE'){await revokeShare(user.id,sharing[1]);return json({active:false});}
+      return json({error:'Método no permitido.'},405,{Allow:'GET, POST, DELETE'});
     }
     const match=path.match(/^\/api\/vehicles\/([^/]+)$/);
     if(match){
@@ -89,10 +110,7 @@ export async function handleRequest(request) {
       const id=url.searchParams.get('id');if(!uuid(id))fail('Adjunto no encontrado.',404);
       const {rows}=await database().query('SELECT f.* FROM vehicle_files f JOIN vehicles v ON v.id=f.vehicle_id AND v.user_id=f.user_id WHERE f.id=$1 AND f.user_id=$2 AND f.uploaded=true AND f.entry_id IS NOT NULL',[id,user.id]);
       const file=rows[0];if(!file)fail('Adjunto no encontrado.',404);
-      const blob=await get(file.pathname,{access:'private'});if(!blob||blob.statusCode!==200)fail('El archivo no está disponible.',404);
-      const inline=/^image\/(png|jpeg|webp|gif|avif|bmp)$/i.test(file.mime)&&url.searchParams.get('download')!=='1';
-      const filename=encodeURIComponent(file.name).replace(/['()]/g,c=>'%'+c.charCodeAt(0).toString(16));
-      return new Response(blob.stream,{headers:{'Content-Type':inline?file.mime:'application/octet-stream','Content-Length':String(file.size),'Content-Disposition':`${inline?'inline':'attachment'}; filename*=UTF-8''${filename}`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox"}});
+      return await fileResponse(file,url);
     }
     if(path==='/api/files'&&request.method==='DELETE'){
       const id=url.searchParams.get('id');if(!uuid(id))fail('Adjunto no encontrado.',404);

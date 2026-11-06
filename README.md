@@ -10,7 +10,9 @@ Producción: https://bitacoraauto.vercel.app
 - Agregar autos, motos, pickups, SUV, utilitarios, camiones, colectivos, motorhomes, embarcaciones, bicicletas y otros vehículos.
 - Elegir un vehículo activo y consultar sus datos, trabajos, costos y adjuntos.
 - Datos e historiales privados por cuenta. El servidor comprueba la sesión y la propiedad del vehículo en cada operación.
-- Hasta 10 adjuntos de 15 MB por trabajo. Los originales se guardan en un almacén privado y se descargan mediante una ruta autenticada.
+- Compartir el historial de un vehículo con un enlace público de solo lectura, sin requerir una cuenta al visitante. El titular puede copiarlo, renovarlo o revocarlo; generar uno nuevo invalida el anterior.
+- La patente, los datos de la cuenta y los otros vehículos no se incluyen en el enlace público. Los adjuntos se comparten únicamente al activar esa opción. El enlace muestra el historial actualizado.
+- Hasta 10 adjuntos de 15 MB por trabajo. Los originales se guardan en un almacén privado; cada descarga requiere la sesión del titular o un enlace vigente que permita ver adjuntos.
 - Copia JSON del vehículo seleccionado, con sus archivos completos. Importar una copia agrega un vehículo nuevo y conserva los demás.
 - Importación explícita del historial de la versión anterior guardado en IndexedDB. Los datos originales del navegador no se eliminan.
 - Control de versión por vehículo: si cambió en otra pestaña o dispositivo, el servidor rechaza el guardado anterior para evitar sobrescribirlo.
@@ -25,6 +27,10 @@ La interfaz está en `dist/`, con módulos JavaScript y CSS. `src/cloud.js` se e
 El esquema de `server/schema.sql` usa claves foráneas de vehículo y usuario para conservar la relación de propiedad. Las consultas reciben siempre el usuario de la sesión; nunca confían en un identificador de usuario enviado por el navegador.
 
 Las rutas de escritura validan el origen de la solicitud. Los identificadores de archivos se comprueban contra su usuario y vehículo antes de emitir permisos de subida o guardarlos en un registro. No se exponen credenciales al navegador.
+
+`server/shares.js` administra enlaces con 256 bits de aleatoriedad. La base guarda únicamente el hash SHA-256 del token. Las rutas `/api/public/:token` aceptan solo lectura y comprueban la vigencia y el alcance del enlace en cada consulta o descarga. Revocar, renovar o eliminar el vehículo invalida el acceso anterior. La página `/compartir/:token` no carga el editor ni necesita una sesión; evita indexación, caché y envío del enlace como referente.
+
+Los iconos y las flechas se renderizan con el módulo SVG compartido `dist/icons.js`. Los controles, formularios y tarjetas usan tamaños flexibles y ajustes para celular y tablet; los selectores utilizan una misma flecha SVG en todos los motores.
 
 ## Desarrollo local
 
@@ -41,7 +47,7 @@ No subir `.env.local`, credenciales ni la carpeta `.vercel` a GitHub. Producció
 ## Verificación
 
 - `npm test`: validaciones, copias, dibujos y compatibilidad de datos anteriores.
-- `node --env-file=.env.local --test --test-isolation=none tests/garage.integration.test.js`: prueba real de dos cuentas, aislamiento de vehículos y control de concurrencia. Crea únicamente cuentas sintéticas con dominio `example.invalid` y las elimina al terminar.
+- `node --env-file=.env.local --test --test-isolation=none tests/garage.integration.test.js`: prueba real de dos cuentas, aislamiento de vehículos, concurrencia, consulta anónima, privacidad de adjuntos y renovación/revocación de enlaces. Crea únicamente cuentas sintéticas con dominio `example.invalid` y las elimina al terminar.
 - `npm run build`: verificación sintáctica y empaquetado del cliente.
 
 En cada compilación de producción en Vercel se ejecutan las migraciones idempotentes. Las migraciones de autenticación rechazan cambios que no se pueden aplicar de forma segura.

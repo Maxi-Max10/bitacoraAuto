@@ -1,36 +1,10 @@
+import {icon,icons} from './icons.js';
+import {setupSharing} from './sharing.js';
 import { carArtwork, vehicleAppearance } from './vehicle.js';
 import { prepareIllustrations } from './vehicle-illustration.js';
 import { CATEGORIES, BODY_TYPES, VEHICLE_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState } from './core.js';
 import * as cloud from './cloud.js';
 
-const paths = {
-  gauge:'<path d="M4.9 19a9 9 0 1 1 14.2 0M12 12l5-5"/><circle cx="12" cy="12" r="1"/>',
-  history:'<path d="M3 11a9 9 0 1 1 2.4 7.1M3 4v7h7M12 7v5l3 2"/>',
-  car:'<path d="m5 7 1.5-4h11L19 7l2 3v9h-3v-3H6v3H3v-9l2-3ZM5 7h14M3 12h18M6 10h1m10 0h1"/>',
-  paperclip:'<path d="m8 13 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9a2 2 0 0 1 3 3l-9 9a1 1 0 0 0 2 2l8-8"/>',
-  download:'<path d="M12 3v12m-5-5 5 5 5-5M4 15v5h16v-5"/>',
-  upload:'<path d="M12 16V4m-5 5 5-5 5 5M4 16v5h16v-5"/>',
-  plus:'<path d="M12 5v14M5 12h14"/>',
-  x:'<path d="m6 6 12 12M6 18 18 6"/>',
-  arrow:'<path d="M5 12h14m-6-6 6 6-6 6"/>',
-  calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18M7 15h2m3 0h2m3 0h1"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  wrench:'<path d="m14 6 4 4 3-3a6 6 0 0 1-8 8l-6 6a3 3 0 0 1-4-4l6-6a6 6 0 0 1 8-8l-3 3Z"/>',
-  oil:'<path d="M3 9h3l3-4h6v4l6 3v6H6l-3-6V9Zm7-4V3m-2 0h6M7 13h9M19 5c3 3 3 5 0 5s-3-2 0-5Z"/>',
-  spark:'<path d="m12 2 3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z"/>',
-  check:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
-  wallet:'<path d="M20 7V4H6a3 3 0 0 0 0 6h15v10H5a3 3 0 0 1-3-3V7m19 6h-5v4h5M6 7h14"/>',
-  search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
-  edit:'<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 15v5Z"/>',
-  archive:'<path d="M4 7v14h16V7M2 3h20v4H2zM9 11h6m-3 0v5m-3-2 3 3 3-3"/>',
-  file:'<path d="M14 2H5v20h14V7l-5-5Zm0 0v6h5M8 12h8m-8 4h6"/>',
-  shield:'<path d="m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6l9-4Z"/><path d="m8 12 3 3 5-6"/>',
-  alert:'<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"/>',
-  trash:'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
-  pin:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>'
-};
-const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.file}</svg>`;
-function icons(root = document) { root.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); }); }
 const $ = selector => document.querySelector(selector);
 const number = value => new Intl.NumberFormat('es-AR').format(value);
 const money = value => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(value);
@@ -93,6 +67,7 @@ async function logout(){
   try{await cloud.signOut();clearAccount();}catch(error){toast(error.message,true);}
 }
 function clearAccount(){
+  sharing.reset();
   revokeURLs();account=null;vehicles=[];state=freshState();demo=null;pendingFiles=[];editingId=null;
   document.querySelectorAll('dialog[open]').forEach(dialog=>dialog.close());$('#page-content').innerHTML='';
   document.body.classList.add('signed-out');$('#auth-screen').hidden=false;$('#boot-screen').hidden=true;$('#auth-form').reset();authTab('login');
@@ -123,7 +98,7 @@ async function importLegacy(){
 
 function hero() {
   const car = current().car; const configured = car.make || car.model;
-  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar vehículo' : 'Configurar mi vehículo'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).drawingLabel)} · ILUSTRACIÓN` : 'LISTO PARA LO QUE VIENE ↗'}</span></section>`;
+  return `<section class="vehicle-hero" aria-label="Resumen de mi auto"><div class="vehicle-info"><div class="vehicle-label"><span></span> MI COMPAÑERO DE CAMINO</div><h2>${configured ? `${esc(car.make)} ${esc(car.model)}` : 'Tu próximo capítulo'}</h2><div class="vehicle-meta">${configured ? `${car.year ? `<span>${car.year}</span><span>·</span>` : ''}<span>${car.plate ? `<span class="plate">${esc(car.plate)}</span>` : 'Sin patente registrada'}</span>` : '<span>Agregá tu auto y empezá a escribir su historia.</span>'}</div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><button class="hero-edit" data-action="edit-car">${icon('edit')} ${configured ? 'Editar vehículo' : 'Configurar mi vehículo'}</button><span class="hero-caption">${configured ? `${esc(vehicleAppearance(car).drawingLabel)} · ILUSTRACIÓN` : `LISTO PARA LO QUE VIENE ${icon('arrowUpRight')}`}</span></section>`;
 }
 function stats() {
   const entries = current().entries, latest = sortEntries(entries)[0], sum = entries.reduce((total, e) => total + (e.cost || 0), 0), hasCost = entries.some(e => e.cost !== null);
@@ -166,6 +141,7 @@ function render() {
   $('#vehicle-select').innerHTML=vehicles.length?vehicles.map(v=>`<option value="${esc(v.id)}">${esc(v.make)} ${esc(v.model)}${v.plate?' · '+esc(v.plate):''}</option>`).join(''):'<option value="">Todavía no agregaste vehículos</option>';
   $('#vehicle-select').value=state.id||'';$('#vehicle-select').disabled=!vehicles.length||!!demo;
   $('#new-entry').hidden=page==='garage'||(!state.id&&!demo);$('#new-vehicle').hidden=page!=='garage';
+  $('#share-history').hidden=page==='garage'||!state.id||Boolean(demo);
   $('#export-data').disabled=!state.id&&!demo;
   $('#demo-banner').hidden=!demo;
   $('#page-content').innerHTML=page==='garage'?garagePage():page==='historial'?historyPage():page==='auto'?carPage():attachmentsPage();
@@ -280,6 +256,7 @@ function startDemo(){
   ]};query='';category='todos';render();window.scrollTo({top:0,behavior:'smooth'});
 }
 
+const sharing=setupSharing({vehicleId:()=>demo?null:state.id,vehicleName:()=>[state.car.make,state.car.model].filter(Boolean).join(' '),notify:toast});
 icons();
 $('#vehicle-type').innerHTML=Object.entries(VEHICLE_TYPES).map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
 $('#auth-login').addEventListener('click',()=>authTab('login'));$('#auth-register').addEventListener('click',()=>authTab('register'));

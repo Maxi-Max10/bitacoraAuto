@@ -31,10 +31,14 @@ export async function createVehicle(userId,raw) {
 export async function loadVehicle(userId,id) {
   return transaction(async client=>{
   const v=await ownedVehicle(userId,id,client,true);
+  return vehicleHistory(client,v);
+  });
+}
+export async function vehicleHistory(client,v) {
+  const {id,user_id:userId}=v;
   const {rows:entries}=await client.query('SELECT *,to_char(date,\'YYYY-MM-DD\') AS day FROM maintenance_entries WHERE vehicle_id=$1 AND user_id=$2 ORDER BY date DESC,time DESC',[id,userId]);
   const {rows:files}=await client.query('SELECT id,entry_id,name,mime,size FROM vehicle_files WHERE vehicle_id=$1 AND user_id=$2 AND entry_id IS NOT NULL AND uploaded=true',[id,userId]);
   return {version:1,id,revision:v.revision,car:fromVehicle(v),entries:entries.map(e=>({id:e.id,title:e.title,category:e.category,date:e.day,time:e.time,km:e.km,cost:e.cost===null?null:Number(e.cost),workshop:e.workshop,notes:e.notes,attachments:files.filter(f=>f.entry_id===e.id).map(f=>({id:f.id,name:f.name,type:f.mime,size:f.size,remote:true}))}))};
-  });
 }
 export async function storeVehicle(userId,id,raw) {
   const car=carData(raw.car);

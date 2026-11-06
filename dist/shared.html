@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#d6ed7f">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Historial compartido · Bitácora</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/public-history.js"></script>
+</head>
+<body class="shared-view">
+  <header class="shared-header"><a class="brand" href="/" aria-label="Bitácora, inicio"><span class="brand-icon" data-icon="gauge"></span>bitácora<span class="brand-dot">.</span></a><span class="read-only-badge"><span data-icon="shield"></span> Solo lectura</span></header>
+  <main class="shared-main" id="main">
+    <div id="public-status" class="shared-status" role="status"><span data-icon="history"></span><h1>Abriendo su historia…</h1><p>Un momento, estamos preparando el historial.</p></div>
+    <div id="public-content" hidden></div>
+    <footer class="shared-footer"><span class="mini-brand">b.</span><p>Un registro hoy. Tranquilidad mañana.</p><span>Historial compartido por el titular del vehículo.</span></footer>
+  </main>
+  <dialog id="public-detail" class="modal wide" aria-label="Detalle del trabajo"></dialog>
+</body>
+</html>

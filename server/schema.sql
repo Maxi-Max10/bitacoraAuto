@@ -46,3 +46,12 @@ CREATE TABLE IF NOT EXISTS vehicle_files (
 );
 CREATE INDEX IF NOT EXISTS files_owner_idx ON vehicle_files(user_id,vehicle_id,entry_id);
 CREATE TABLE IF NOT EXISTS file_garbage(pathname text PRIMARY KEY,created_at timestamptz NOT NULL DEFAULT now());
+
+CREATE TABLE IF NOT EXISTS vehicle_shares (
+  vehicle_id uuid PRIMARY KEY,
+  user_id text NOT NULL,
+  token_hash char(64) NOT NULL UNIQUE,
+  include_attachments boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  FOREIGN KEY (vehicle_id,user_id) REFERENCES vehicles(id,user_id) ON DELETE CASCADE
+);

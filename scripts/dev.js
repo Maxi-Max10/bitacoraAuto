@@ -16,7 +16,7 @@ http.createServer(async(req,res)=>{
       const cookies=response.headers.getSetCookie();if(cookies.length)res.setHeader('Set-Cookie',cookies);
       if(response.body)Readable.fromWeb(response.body).pipe(res);else res.end();return;
     }
-    const url=new URL(requestURL),file=path.resolve(root,'.'+(url.pathname==='/'?'/index.html':decodeURIComponent(url.pathname)));
+    const url=new URL(requestURL),file=path.resolve(root,'.'+(url.pathname==='/'?'/index.html':/^\/compartir\/[^/]+\/?$/.test(url.pathname)?'/shared.html':decodeURIComponent(url.pathname)));
     if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
     const data=await readFile(file);
     res.writeHead(200,{'Content-Type':({'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png'}[path.extname(file)]||'application/octet-stream')+'; charset=utf-8','Cache-Control':'no-store'}).end(data);
