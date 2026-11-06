@@ -63,9 +63,18 @@ export function sortEntries(entries, sort = 'newest') {
   return [...entries].sort((a, b) => sort === 'km' ? b.km - a.km : sort === 'oldest' ? `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`) : `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
 }
 export function filterEntries(entries, query, category) {
-  const norm = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const q = norm(query.trim());
-  return entries.filter(e => (category === 'todos' || e.category === category) && (!q || norm(`${e.title} ${e.workshop} ${e.notes} ${e.km}`).includes(q)));
+  const norm = text => String(text??'').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const terms = norm(query).trim().split(/\s+/).filter(Boolean);
+  const months=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return entries.filter(e => {
+    if(category!=='todos'&&e.category!==category)return false;
+    if(!terms.length)return true;
+    const [year,month,day]=String(e.date??'').split('-');
+    const localDate=day?`${day}/${month}/${year} ${Number(day)}/${Number(month)}/${year} ${Number(day)} ${months[Number(month)-1]||''} ${year}`:'';
+    const km=String(e.km??''),formattedKm=km.replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+    const text=norm(`${e.title} ${e.workshop} ${e.notes} ${e.category} ${CATEGORIES[e.category]||''} ${km} ${formattedKm} ${e.date??''} ${localDate} ${(e.attachments||[]).map(file=>file.name).join(' ')}`);
+    return terms.every(term=>text.includes(term));
+  });
 }
 export function openDatabase() {
   return new Promise((resolve, reject) => {

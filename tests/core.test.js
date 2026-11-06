@@ -33,6 +33,17 @@ test('busca sin acentos por taller y notas y combina categoría',()=>{
   assert.equal(filterEntries([entry()],'5w-30','mantenimiento').length,1);
   assert.equal(filterEntries([entry()],'jose','reparacion').length,0);
 });
+
+test('busca varias palabras entre campos, fechas, kilómetros y adjuntos',()=>{
+  const record={...entry(),attachments:[{id:'f',name:'Factura José noviembre.pdf'}]};
+  for(const query of ['  ACEITE   JOSE  ','03/11/2026','3 noviembre 2026','2026-11-03','42.000','42000','factura noviembre','mantenimiento José']){
+    assert.equal(filterEntries([record],query,'todos').length,1,query);
+  }
+  assert.equal(filterEntries([record],'aceite frenos','todos').length,0);
+  assert.equal(filterEntries([record],'factura','reparacion').length,0);
+  assert.equal(filterEntries([{...record,attachments:[]}],'factura','todos').length,0,'no busca en adjuntos que no se comparten');
+  assert.equal(filterEntries([record],'   ','todos').length,1);
+});
 test('ordena por fecha y hora o kilometraje sin alterar el original',()=>{
   const a=entry(),b={...entry(),id:'two',time:'16:30',km:41000};const list=[a,b];
   assert.equal(sortEntries(list)[0].id,'two');assert.equal(sortEntries(list,'km')[0].id,'one');assert.equal(list[0].id,'one');

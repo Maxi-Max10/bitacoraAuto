@@ -2,6 +2,7 @@ import {escapeHTML as esc,CATEGORIES,VEHICLE_TYPES,filterEntries,sortEntries} fr
 import {icon,icons} from './icons.js';
 import {carArtwork,vehicleAppearance} from './vehicle.js';
 import {prepareIllustrations} from './vehicle-illustration.js';
+import {historySearch,historySearchResults,updateHistorySearch,setupHistorySearch} from './history-search.js';
 
 const $=selector=>document.querySelector(selector);
 const number=value=>new Intl.NumberFormat('es-AR').format(value);
@@ -20,13 +21,14 @@ function render(){
   $('#public-content').innerHTML=`<section class="page-title"><div><div class="eyebrow">CADA KILÓMETRO CUENTA</div><h1>Una historia para compartir<span>.</span></h1><p>Consultá los cuidados de este vehículo, en un solo lugar.</p></div></section>
     <section class="vehicle-hero" aria-label="Datos del vehículo"><div class="vehicle-info"><div class="vehicle-label"><span></span> HISTORIAL COMPARTIDO</div><h2>${esc(name)}</h2><div class="vehicle-meta">${car.year?`<span>${car.year}</span><span>·</span>`:''}<span>${esc(VEHICLE_TYPES[car.type]||'Vehículo')}</span></div><div class="vehicle-km">${icon('gauge')}<strong>${number(car.km)}</strong><span>km recorridos</span></div></div><div class="vehicle-art">${carArtwork(car)}</div><span class="hero-caption">${esc(vehicleAppearance(car).drawingLabel)} · ILUSTRACIÓN</span></section>
     <section class="stats" aria-label="Resumen del historial"><div class="stat"><div><span class="stat-label">Trabajos registrados</span><div class="stat-value">${String(entries.length).padStart(2,'0')}</div><div class="stat-foot">Cada cuidado cuenta</div></div><span class="stat-icon">${icon('wrench')}</span></div><div class="stat"><div><span class="stat-label">Último trabajo</span><div class="stat-value small">${latest?date(latest.date,{day:'2-digit',month:'short'}):'Por empezar'}</div><div class="stat-foot">${latest?number(latest.km)+' km':'Sin registros todavía'}</div></div><span class="stat-icon">${icon('calendar')}</span></div><div class="stat"><div><span class="stat-label">Inversión registrada</span><div class="stat-value small">${hasCost?money(total):'$ —'}</div><div class="stat-foot">Costos declarados · ARS</div></div><span class="stat-icon">${icon('wallet')}</span></div></section>
-    <section aria-label="Historial de trabajos"><div class="history-header"><h2 class="section-title">Historial de cuidados <span class="count-badge">${entries.length}</span></h2><select id="public-sort" class="sort-select" aria-label="Ordenar historial"><option value="newest">Más recientes primero</option><option value="oldest">Más antiguos primero</option><option value="km">Mayor kilometraje</option></select></div><div class="toolbar"><div class="search-box">${icon('search')}<input id="public-search" type="search" placeholder="Buscar en el historial…" aria-label="Buscar por trabajo, notas, kilómetros o taller"></div><div class="filter-tabs" role="group" aria-label="Filtrar por tipo de trabajo">${[['todos','Todos'],...Object.entries(CATEGORIES).filter(([key])=>key!=='otro')].map(([key,label])=>`<button class="filter ${key==='todos'?'active':''}" data-public-filter="${key}" aria-pressed="${key==='todos'}">${label}</button>`).join('')}</div></div><div class="timeline" id="public-timeline"></div></section>
+    <section aria-label="Historial de trabajos"><div class="history-header"><h2 class="section-title">Historial de cuidados <span class="count-badge">${entries.length}</span></h2><select id="public-sort" class="sort-select" aria-label="Ordenar historial"><option value="newest">Más recientes primero</option><option value="oldest">Más antiguos primero</option><option value="km">Mayor kilometraje</option></select></div><div class="toolbar history-toolbar">${historySearch("public-search","public-timeline")}<div class="filter-tabs" role="group" aria-label="Filtrar por tipo de trabajo">${[['todos','Todos'],...Object.entries(CATEGORIES)].map(([key,label])=>`<button class="filter ${key==='todos'?'active':''}" data-public-filter="${key}" aria-pressed="${key==='todos'}">${label}</button>`).join('')}</div></div>${historySearchResults("public-search")}<div class="timeline" id="public-timeline"></div></section>
     <p class="shared-disclosure">${icon('shield')} Este enlace permite consultar el historial actualizado. ${history.attachmentsShared?'Incluye los adjuntos que el titular decidió compartir.':'Las fotos y comprobantes permanecen privados.'}</p>`;
   $('#public-status').hidden=true;$('#public-content').hidden=false;
   prepareIllustrations($('#public-content'));renderTimeline();
 }
 function renderTimeline(){
   const entries=sortEntries(filterEntries(history.entries,query,category),sort);let month='';
+  updateHistorySearch('public-search',{query,shown:entries.length,total:history.entries.length,filtered:Boolean(query.trim())||category!=='todos'});
   $('#public-timeline').innerHTML=entries.length?entries.map(entry=>{
     const group=sort==='km'?'':entry.date.slice(0,7);let heading='';
     if(group!==month){month=group;heading=`<div class="month-heading">${date(entry.date,{month:'long',year:'numeric'}).toUpperCase()}</div>`;}
@@ -41,7 +43,7 @@ function showDetail(id){
 }
 
 icons();
-document.addEventListener('input',event=>{if(event.target.id==='public-search'){query=event.target.value;renderTimeline();}});
+setupHistorySearch('public-search',value=>{if(query!==value){query=value;renderTimeline();}});
 document.addEventListener('change',event=>{if(event.target.id==='public-sort'){sort=event.target.value;renderTimeline();}});
 document.addEventListener('click',event=>{
   if(event.target.closest('[data-public-close]')){$('#public-detail').close();return;}

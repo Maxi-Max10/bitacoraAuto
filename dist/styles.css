@@ -46,6 +46,23 @@
 /* Flexible content and identical SVG controls across browser engines. */
 .ui-icon{display:inline-block;flex-shrink:0;vertical-align:middle}
 .entry-card:focus-visible{outline:3px solid #97b849;outline-offset:3px}
+.history-search{width:100%;min-width:0}
+.history-search>label{display:block;font-size:12px;font-weight:600;color:#536247;margin-bottom:10px}
+.history-search .search-box{width:100%;min-width:0}
+.history-search .search-box>svg{left:15px;top:16px;width:18px;height:18px;pointer-events:none}
+.history-search input{appearance:none;-webkit-appearance:none;box-sizing:border-box;min-height:50px;width:100%;padding:13px 52px 13px 44px;font-size:14px;line-height:22px;border-radius:10px;color:#39472d;background:#fff;box-shadow:0 2px 8px #25321a03}
+.history-search input::-webkit-search-cancel-button,.history-search input::-webkit-search-decoration{-webkit-appearance:none}
+.history-search .search-clear{position:absolute;right:3px;top:3px;display:grid;place-items:center;width:44px;height:44px;border-radius:8px;color:#7c8e68}
+.history-search .search-clear:hover{background:#eff4e6}.history-search .search-clear svg{position:static;width:17px;height:17px;color:inherit}
+.search-help{font-size:11px;color:#8b977e;line-height:1.7;margin:8px 0 0}
+.toolbar.history-toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:stretch;margin-bottom:10px}
+.toolbar.history-toolbar .filter-tabs{flex-wrap:wrap;overflow:visible;gap:6px;padding:0;max-width:100%}
+.toolbar.history-toolbar .filter{min-height:40px;padding:10px 14px;font-size:11px}
+.history-results{font-size:11px;line-height:1.7;color:#859275;min-height:19px;margin:0 0 20px;overflow-wrap:anywhere}
+.history-header .sort-select{min-height:40px;padding:10px 30px 10px 12px!important;font-size:11px;max-width:100%;background-color:#fff;background-position:right 8px center;border:1px solid var(--border);border-radius:8px}
+@media(max-width:900px){.history-search input{font-size:16px}.toolbar.history-toolbar .filter{min-height:44px;padding:10px 12px}.history-header .sort-select{min-height:44px;font-size:12px}}
+@media(max-width:620px){.history-search>label{font-size:13px}.search-help{font-size:10px}.history-results{font-size:10px;margin-bottom:18px}.toolbar.history-toolbar{gap:14px}.toolbar.history-toolbar .filter{font-size:10px;padding:10px 11px}}
+@media(max-width:380px){.history-search input{padding-left:40px}.history-search .search-box>svg{left:13px;width:16px}.history-header .sort-select{width:100%}.toolbar.history-toolbar .filter-tabs{gap:5px}.toolbar.history-toolbar .filter{padding:10px;font-size:10px}}
 .sidebar-footer .ui-icon,.main-footer .ui-icon{width:12px;height:12px}
 .auth-road .ui-icon{width:240px;height:240px;stroke-width:1.2}
 .road-line:after{content:'';width:14px;height:14px;top:-10px;background:#fcfdf9 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f9d72' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17 17 7M7 7h10v10'/%3E%3C/svg%3E") center/14px no-repeat}

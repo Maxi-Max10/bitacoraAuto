@@ -1,5 +1,6 @@
 import {icon,icons} from './icons.js';
 import {setupSharing} from './sharing.js';
+import {historySearch,historySearchResults,updateHistorySearch,setupHistorySearch} from './history-search.js';
 import { carArtwork, vehicleAppearance } from './vehicle.js';
 import { prepareIllustrations } from './vehicle-illustration.js';
 import { CATEGORIES, BODY_TYPES, VEHICLE_TYPES, MAX_FILES, MAX_FILE_SIZE, freshState, escapeHTML as esc, validateEntry, validateCar, serializeBackup, deserializeBackup, sortEntries, filterEntries, openDatabase, loadState } from './core.js';
@@ -105,13 +106,14 @@ function stats() {
   return `<section class="stats" aria-label="Resumen del historial"><div class="stat"><div><span class="stat-label">Trabajos registrados</span><div class="stat-value">${String(entries.length).padStart(2,'0')}</div><div class="stat-foot">Cada cuidado cuenta</div></div><span class="stat-icon">${icon('wrench')}</span></div><div class="stat"><div><span class="stat-label">Último trabajo</span><div class="stat-value small">${latest ? dateLabel(latest.date,{day:'2-digit',month:'short'}) : 'Por empezar'}</div><div class="stat-foot">${latest ? `${number(latest.km)} km · ${esc(CATEGORIES[latest.category])}` : 'Sumá tu primer registro'}</div></div><span class="stat-icon">${icon('calendar')}</span></div><div class="stat"><div><span class="stat-label">Inversión en tu auto</span><div class="stat-value small">${hasCost ? money(sum) : '$ —'}</div><div class="stat-foot">${hasCost ? `${entries.filter(e=>e.cost!==null).length} trabajos con costo · ARS` : 'Los costos son opcionales · ARS'}</div></div><span class="stat-icon">${icon('wallet')}</span></div></section>`;
 }
 function historyPage() {
-  return `${hero()}${stats()}<section aria-label="Historial de trabajos"><div class="history-header"><h2 class="section-title">Historial de cuidados <span class="count-badge">${current().entries.length}</span></h2><select class="sort-select" id="sort-entries" aria-label="Ordenar historial"><option value="newest">Más recientes primero</option><option value="oldest">Más antiguos primero</option><option value="km">Mayor kilometraje</option></select></div><div class="toolbar"><div class="search-box">${icon('search')}<input id="search-entries" type="search" placeholder="Buscar en tu historial…" aria-label="Buscar por trabajo, notas, kilómetros o taller" value="${esc(query)}"></div><div class="filter-tabs" role="group" aria-label="Filtrar por tipo de trabajo">${[['todos','Todos'],...Object.entries(CATEGORIES).filter(([k])=>k!=='otro')].map(([key,label])=>`<button class="filter ${category===key?'active':''}" data-filter="${key}" aria-pressed="${category===key}">${label}</button>`).join('')}</div></div><div class="timeline" id="timeline"></div></section>`;
+  return `${hero()}${stats()}<section aria-label="Historial de trabajos"><div class="history-header"><h2 class="section-title">Historial de cuidados <span class="count-badge">${current().entries.length}</span></h2><select class="sort-select" id="sort-entries" aria-label="Ordenar historial"><option value="newest">Más recientes primero</option><option value="oldest">Más antiguos primero</option><option value="km">Mayor kilometraje</option></select></div><div class="toolbar history-toolbar">${historySearch("search-entries","timeline",query)}<div class="filter-tabs" role="group" aria-label="Filtrar por tipo de trabajo">${[['todos','Todos'],...Object.entries(CATEGORIES)].map(([key,label])=>`<button class="filter ${category===key?'active':''}" data-filter="${key}" aria-pressed="${category===key}">${label}</button>`).join('')}</div></div>${historySearchResults("search-entries")}<div class="timeline" id="timeline"></div></section>`;
 }
 function entryCard(e) {
   return `<article class="entry-card" data-entry="${esc(e.id)}" tabindex="0" role="button" aria-label="Ver ${esc(e.title)}"><span class="entry-icon ${e.category}">${icon(categoryIcon(e.category))}</span><div class="entry-main"><div class="entry-title-row"><h3 class="entry-title">${esc(e.title)}</h3><span class="category-pill ${e.category}">${CATEGORIES[e.category]}</span></div><div class="entry-meta"><span>${icon('calendar')}${dateLabel(e.date)}</span><span>${icon('clock')}${e.time} h</span><span>${icon('gauge')}${number(e.km)} km</span></div>${e.notes?`<p class="entry-description">${esc(e.notes)}</p>`:''}<div class="entry-footer"><span>${e.attachments.length?`<span class="attachment-badge">${icon('paperclip')}${e.attachments.length} ${e.attachments.length===1?'adjunto':'adjuntos'}</span>`:''}</span><span class="entry-workshop">${esc(e.workshop)}</span></div></div><div class="entry-side"><span class="entry-cost ${e.cost===null?'empty':''}">${e.cost===null?'Sin costo':money(e.cost)}</span><span class="entry-open">${icon('arrow')}</span></div></article>`;
 }
 function renderTimeline() {
   const entries = sortEntries(filterEntries(current().entries,query,category),sort); let lastGroup='';
+  updateHistorySearch('search-entries',{query,shown:entries.length,total:current().entries.length,filtered:Boolean(query.trim())||category!=='todos'});
   $('#timeline').innerHTML = entries.length ? entries.map(e => {
     const group = sort==='km' ? '' : e.date.slice(0,7); let heading='';
     if (group !== lastGroup) { lastGroup=group; heading=`<div class="month-heading">${dateLabel(e.date,{month:'long',year:'numeric'}).toUpperCase()}</div>`; }
@@ -284,7 +286,7 @@ $('#import-data').addEventListener('change',importData);
 $('#exit-demo').addEventListener('click',()=>{demo=null;query='';category='todos';render();toast('Volviste a tu garage personal.');});
 $('#confirm-ok').addEventListener('click',()=>$('#confirm-dialog').close('yes'));
 $('#confirm-cancel').addEventListener('click',()=>$('#confirm-dialog').close('no'));
-document.addEventListener('input',e=>{if(e.target.id==='search-entries'){query=e.target.value;renderTimeline();}});
+setupHistorySearch('search-entries',value=>{if(query!==value){query=value;renderTimeline();}});
 document.addEventListener('change',e=>{if(e.target.id==='sort-entries'){sort=e.target.value;renderTimeline();}});
 document.addEventListener('keydown',e=>{const card=e.target.closest('[data-entry]');if(card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();showDetail(card.dataset.entry);}});
 document.addEventListener('click',e=>{

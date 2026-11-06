@@ -9,6 +9,7 @@ Producción: https://bitacoraauto.vercel.app
 - Crear una cuenta con email y contraseña, iniciar y cerrar sesión.
 - Agregar autos, motos, pickups, SUV, utilitarios, camiones, colectivos, motorhomes, embarcaciones, bicicletas y otros vehículos.
 - Elegir un vehículo activo y consultar sus datos, trabajos, costos y adjuntos.
+- Buscar en el historial propio y público por trabajo, taller, notas, fecha, kilómetros o nombre de adjunto. La búsqueda ignora acentos y mayúsculas, combina palabras entre campos, muestra coincidencias y permite borrar con un botón o Escape. Se combina con categoría y orden.
 - Datos e historiales privados por cuenta. El servidor comprueba la sesión y la propiedad del vehículo en cada operación.
 - Compartir el historial de un vehículo con un enlace público de solo lectura, sin requerir una cuenta al visitante. El titular puede copiarlo, renovarlo o revocarlo; generar uno nuevo invalida el anterior.
 - La patente, los datos de la cuenta y los otros vehículos no se incluyen en el enlace público. Los adjuntos se comparten únicamente al activar esa opción. El enlace muestra el historial actualizado.
